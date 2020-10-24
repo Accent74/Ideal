@@ -1,0 +1,74 @@
+'-----------
+'	Идеал 037
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UpdateCodeScript "091а", "091а Индексация (автомат.).mtd", Updater
+	UpdateCodeScript "0420п", "0420п Больничные соцстрах.mtd", Updater
+	UpdateCodeScript "0430w", "0430w Больничные по беременности (без).mtd", Updater
+	UpdateCodeScript "0440w", "0440w Больничные по уходу за ребёнком (CC).mtd", Updater
+	UpdateCodeScript "0450w", "0450w Больничные по травме (ФНС).mtd", Updater
+	UpdateCodeScript "0801-01", "0801-01 Льгота по подоходному налогу.mtd", Updater
+	UpdateCodeScript "2220п", "2220п Алименты.mtd", Updater
+
+	UpdateCodeScript WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", Updater
+	updater.refresh
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Октябрь 2007"
+	SetUTFieldValue UTableID, fMonth, "Ноябрь 2007"
+	SetUTFieldValue UTableID, fMonth, "Декабрь 2007"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+	update_table_fields
+	updater.refresh
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "037.htm"
+
+End Sub
+
+'----
+'
+'----
+Sub update_table_fields
+	Dim rs
+
+	Set rs = GetRs("Select UTV_STRING from  UT_VALUES where UTV_STRING=""МФО предприятия""")
+	If Not rs.eof Then
+		If App.AppType = "DAO" Then Rs.Edit
+		rs.fields(0).Value = "МФО банка"
+		rs.update
+	End If
+
+End Sub
+'----
+'
+'----

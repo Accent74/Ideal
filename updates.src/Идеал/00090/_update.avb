@@ -1,0 +1,319 @@
+'-----------
+'	Идеал 090
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+'#include "st7_actionmenu_class.avb"
+
+Const CURR_YEAR = 2015
+
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim EnYesID, EnID
+
+	add_enum_logic updater, EnID, EnYesID
+	update_time_table
+	add_update_system updater, EnID, EnYesID
+	AddIndexes updater
+	AddMenuAction updater
+	CreateBackupFolder 
+
+	If Not updater.fail Then
+		MsgBox "Для дальнейшего работы программу требуется перезагрузить", vbExclamation, "Внимание !"
+
+'		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+'			ShowWhatsNew "WhatNewIdeal.chm", "090.htm"
+'		End If
+	Else
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub CreateBackupFolder
+	Dim RD, FldName
+	
+	Set RD = CreateLibObject("Redirect")
+	FldName = RD.DBPath & "\backup"
+
+	CreateFolder FldName
+	
+End Sub
+'----
+'
+'----
+Sub AddMenuAction(updater)
+	Dim MA
+	Dim MA_Item
+
+	Set MA = New mActions
+	
+	Set MA_Item = MA.ItemByName("Сервис")
+
+	If MA_Item Is Nothing Then
+		Set MA_Item = MA.Root.Create("Сервис", "", 0, MA.Root.count + 1)
+	End If
+
+	If Not MA_Item Is Nothing Then
+		If MA.ItemByName("Резервное копирование") Is Nothing Then
+			MA_Item.Children.Create "Резервное копирование", "ST7_BackupDB.adg", 1, MA.Root.count + 1
+		End If
+	End If
+
+	MA.Save
+End Sub
+'----
+'
+'----
+Sub add_enum_logic(updater, EnID, EnYesID)
+	Dim En, CString, i, Rs
+
+	Set En = Add_Enums("Логика", updater)
+	If updater.fail Then Exit Sub
+
+	If En Is Nothing Then
+		Set Rs = RunSQL("select enn_id from enum_names where enn_name='Логика'")
+
+		If Rs.eof Then 
+			updater.writelog "Не найдено перечисление Логика"
+			updater.fail = True
+			Exit Sub
+		End If
+
+		EnID = Rs.Fields(0).Value
+
+		If App.AppType = "DAO" Then
+			Workarea.DAODAtaBase.Execute "insert into enums (enn_id, enm_name) values (" & EnID & ",'ДА')"
+			Workarea.DAODAtaBase.Execute "insert into enums (enn_id, enm_name) values (" & EnID & ",'НЕТ')"
+		Else
+			RunSQL "insert into enums (enn_id, enm_name) values (" & EnID & ",'ДА')"
+			RunSQL "insert into enums (enn_id, enm_name) values (" & EnID & ",'НЕТ')"
+		End If
+
+		Set Rs = RunSQL("select enm_id from enums where enn_id=" & EnID & " and enm_name='ДА'")
+
+		If rs.eof Then
+			EnYesID = 0
+		Else
+			EnYesID = Rs.Fields(0).Value
+		End If
+
+	Else
+		CString = UCase(En.ComboString)
+		
+		If InStr(CString, "НЕТ") = 0 Then En.Create "НЕТ", ""
+	
+		If InStr(CString, "ДА") = 0 Then 
+			EnYesID = En.Create("ДА", "")
+		Else
+			For i = 1 To En.Count
+				If En.ItemName(i) = "ДА" Then
+					EnYesID = En.ItemID(i)
+					Exit Sub
+				End If
+			Next
+		End If
+
+		EnID = En.ID
+	End If
+
+End Sub
+'----
+'
+'----
+Sub add_update_system(updater, EnID, EnYes)
+	If updater.fail Then Exit Sub
+
+	With Workarea.Params
+		If Not .Exists("Проверять обновления") Then
+			.CreateRef "Проверять обновления", 18, EnID
+		End If
+	End With
+
+	Workarea.UserParam("CONFIG_CODE1") = "PI7"
+	workarea.params("Проверять обновления").value2 = EnYes
+	Workarea.UserParam("BackUpMode") = 1
+
+End Sub
+'----
+'
+'----
+Sub update_time_table
+	Dim i, SQL1, SQL2, SQL3
+	Dim Days, Hours, pp_id
+	Dim DefTableID
+	
+	Days = Array(20,20,21,21,18,20,23,20,22,22,21,23)
+	Hours = Array(159,160,168,167,143,160,184,160,176,176,168,183)
+	
+	SQL1 = "insert into p_period (pp_type, pp_month, pp_year) values (0, "
+	SQL2 = "insert into time_table_values (tt_id, pp_id, ttv_days, TTV_HOURS) values ("
+	
+	DefTableID = GetDefTable()
+	
+	For i = 1 To 12
+		If FindPeriod(i, CURR_YEAR) = 0 Then
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL1 & i & ", " & CURR_YEAR & ")"
+			Else
+				RunSQL SQL1 & i & ", " & CURR_YEAR & ")"
+			End If
+
+			pp_id = FindPeriod(i, CURR_YEAR)
+
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			Else
+				RunSQL SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			End If
+		End If
+	Next
+	
+	SQL3 = "insert into time_table_holidays (tth_year, tth_1, tth_2, tth_3, tth_4, tth_5, tth_6, tth_7, tth_8, tth_9, tth_10, tth_11, tth_12) values ("
+	SQL3 = SQL3 & CURR_YEAR & ",	65,	0,	128,	0,	259,	0,	0,	8388608,	0,	0,	0,	0)"
+	
+	If Not find_holidays(CURR_YEAR) Then
+		If app.appType = "DAO" Then
+			workarea.daodatabase.execute SQL3
+		Else
+			RunSQL SQL3
+		End If
+	End If
+End Sub
+
+'----
+'
+'----
+Sub AddIndexes(updater)
+	Dim UTableID, fMonth, fValue
+
+	If updater.fail Then Exit Sub
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+	
+	updatetablevalue UTableID, fMonth, fValue, "2014	Январь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Февраль	100,6"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Март	102,2"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Апрель	103,3"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Май	103,8"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Июнь	101"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Июль	100,4"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Август	100,8"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Сентябрь	102,9"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Октябрь	102,4"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Ноябрь	101,9"
+	updatetablevalue UTableID, fMonth, fValue, "2014	Декабрь	103"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Январь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Февраль	99,9"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Март	100"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Апрель	100"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Май	100,1"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Июнь	100"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Июль	99,9"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Август	99,3"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Сентябрь	100"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Октябрь	100,4"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Ноябрь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2013	Декабрь	100,5"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Январь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Февраль	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Март	100,3"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Апрель	100"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Май	99,7"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Июнь	99,7"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Июль	99,8"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Август	99,7"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Сентябрь	100,1"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Октябрь	100"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Ноябрь	99,9"
+	updatetablevalue UTableID, fMonth, fValue, "2012	Декабрь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Январь	101"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Февраль	100,9"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Март	101,4"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Апрель	101,3"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Май	100,8"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Июнь	100,4"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Июль	98,7"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Август	99,6"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Сентябрь	100,1"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Октябрь	100"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Ноябрь	100,1"
+	updatetablevalue UTableID, fMonth, fValue, "2011	Декабрь	100,2"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Январь	101,8"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Февраль	101,9"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Март	100,9"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Апрель	99,7"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Май	99,4"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Июнь	99,6"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Июль	99,8"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Август	101,2"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Сентябрь	102,9"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Октябрь	100,5"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Ноябрь	100,3"
+	updatetablevalue UTableID, fMonth, fValue, "2010	Декабрь	100,8"
+End Sub
+
+'---
+'
+'---

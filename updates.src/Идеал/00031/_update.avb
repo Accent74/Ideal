@@ -1,0 +1,67 @@
+'-----------
+'	Идеал 031
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Add1DFCodes updater
+
+	If WorkArea.GetCodeID("3010п") <> 0 Then
+		WorkArea.Code(WorkArea.GetCodeID("3010п")).SetScriptFromFile "3010п Выплата зарплаты.mtd"
+		updater.refresh
+	Else
+		updater.writelog "Не найден метод 3031п"
+	End If
+
+End Sub
+
+'-------------------
+'
+'-------------------
+Function Add1DFCodes(updater) 
+	Dim Fld
+	Dim aCodes
+	Dim aDeps
+	Dim i, cCode, cCodeName, j
+	Dim CodeID
+	Dim NewCode
+	Dim aCodeDeps
+
+	aCodes = Array( "0028:1ДФ(начисления)" )
+	aDeps = Array(	"0110 0115 0210 0220 0230 0240 0250 0260 270 0310 320 0410 0420 0430 0440 0450 0510 0520 0530 0540 0550 0600 0610 0620 0630 091 095 096" )
+
+	Set Fld = FindFolder("Отчеты", WorkArea.Codes, False)
+
+	For i = 0 To UBound(aCodes)
+		cCode = token(aCodes(i), 1, ":")
+		cCodeName = token(aCodes(i), 2, ":")
+		CodeID = WorkArea.GetCodeID(cCode)
+
+		If CodeID = 0 Then
+			updater.writelog "Добавляю код " & cCode
+			Set NewCode = Fld.Create(103, cCode, cCodeName)
+		Else
+			Set NewCode = WorkArea.Code(CodeID)
+			If NewCode.Name <> cCodeName Then NewCode.Name = cCodeName
+		End If
+			
+		aCodeDeps = Split(aDeps(i), " ")
+	
+		For j = 0 To UBound(aCodeDeps)
+			CodeID = WorkArea.GetCodeID(aCodeDeps(j))
+			If CodeID <> 0 Then
+				NewCode.AddDependency CodeID
+				updater.writelog "Добавлена зависимость в код " & cCode & " от " & aCodeDeps(j)
+			Else
+				updater.writelog "Код " & aCodeDeps(j) & " не обнаружен. Зависимость для кода " & cCode & " не установлена."
+			End If
+		Next
+	Next
+End Function		
+

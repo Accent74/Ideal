@@ -1,0 +1,221 @@
+'-----------
+'	Идеал 056
+'	модуль обновления 
+'-----------
+
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	updatetables updater
+	If Not updater.fail Then SetNewTax updater
+
+	updater.refresh
+
+	AddNewCodes updater
+	AddNewMethods updater
+	AddNewFOT updater
+	AddNewForm updater
+
+	If Not updater.fail Then
+		updater.fail = Not AddAgProps("Коды и признаки", "Увеличивать макс. льготный доход", 3, 111, "Да|Нет")
+	End If
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "056.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Февраль 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Март 2011", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+
+'----
+'
+'----
+Sub SetNewTax(updater)
+	Dim UTableID
+
+	If MsgBox("Обновлять ставки 2011 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Размер льготы", 434.50, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 1220, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 13830, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 922, updater
+	End If	
+
+End Sub
+'----
+'
+'----
+Function CreateCode(CodeType, Code, CodeName, RootFolder)
+	Dim CodeID
+
+	CodeID = Workarea.GetCodeID(Code)
+
+	If CodeID = 0 Then
+		Set CreateCode = RootFolder.Create(CodeType, Code, CodeName)
+	Else
+		Set CreateCode = Workarea.Code(CodeID)
+	End If
+
+End Function
+'----
+'
+'----
+Sub AddNewCodes(updater)
+	Dim RootFolder, NewCode
+
+	If updater.fail Then Exit Sub
+
+	Set RootFolder = FindCodeFolder("2 Удержания", Workarea.Codes)
+	Set RootFolder = FindCodeFolder("24 Обязательные 2011", RootFolder)
+	
+	CreateCode 102, "2400", "НДФЛ", RootFolder
+	CreateCode 102, "2400а", "НДФЛ (аванс)", RootFolder
+	CreateCode 102, "2410", "ЕСВ (базовый)", RootFolder
+	CreateCode 102, "2410а", "ЕСВ (базовый, аванс)", RootFolder
+	CreateCode 102, "2420", "ЕСВ (больничные)", RootFolder
+	CreateCode 102, "2420а", "ЕСВ (больничные, аванс)", RootFolder
+	CreateCode 102, "2430", "ЕСВ (трудовой договор)", RootFolder
+	CreateCode 102, "2430а", "ЕСВ (трудовой договор, аванс)", RootFolder
+	CreateCode 102, "2440", "Льгота по НДФЛ", RootFolder
+	
+	updater.refresh
+
+	CheckDEpends Array("2400"), Array("0110"," 0115","0210","0220","0230","0240","0250","0260",_
+															"0270","0310","0320","0410","0420","0440","0450","0510",_
+															"0520","0530","0540","0550","0600","0610","0620","0630",_
+															"091","096","2400а","2410","2410а","2420","2420а","2440"), updater
+
+	CheckDEpends Array("2400а"), Array("0117","2410а","2420а"), updater
+	CheckDEpends Array("2410"), Array("0117","2410а","0110"), updater
+	CheckDEpends Array("2410а", "2430а"), Array("0117"), updater
+	CheckDEpends Array("2420"), Array("0410", "0420", "0460", "2410", "2410а", "2420а"), updater
+	CheckDEpends Array("2430"), Array("2430а","0110"), updater
+	CheckDEpends Array("2440"), Array("0110"), updater
+
+	updater.refresh
+
+End Sub
+'----
+'
+'----
+Sub AddNewMethods(updater)
+	If updater.fail Then Exit Sub
+
+	AddCodes "2400", Array("2401 НДФЛ"), 200, 2, updater
+	AddCodes "2400а", Array("2401а НДФЛ (аванс)"), 200, 2, updater
+	AddCodes "2410", Array("2411 ЕСВ (базовый)"), 200, 2, updater
+	AddCodes "2410а", Array("2411а ЕСВ (базовый, аванс)"), 200, 2, updater
+	AddCodes "2420", Array("2421 ЕСВ (больничные)"), 200, 2, updater
+	AddCodes "2420а", Array("2421а ЕСВ (больничные, аванс)"), 200, 2, updater
+	AddCodes "2430", Array("2431 ЕСВ (трудовой договор)"), 200, 2, updater
+	AddCodes "2430а", Array("2431а ЕСВ (трудовой договор, аванс)"), 200, 2, updater
+	AddCodes "2440", Array("2441 Льгота по НДФЛ"), 200, 2, updater
+	AddCodes "0117", Array("0117-02 Начислен аванс с 01.01.2011"), 200, 2, updater
+
+	updater.refresh
+
+	updatemethod Workarea.GetCodeID("0117-02"), "0117-02 Начислен аванс с 01.01.2011.mtd", updater
+	updatemethod Workarea.GetCodeID("2401"), "2401 НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("2401а"), "2401а НДФЛ (аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2411"), "2411 ЕСВ (базовый).mtd", updater
+	updatemethod Workarea.GetCodeID("2411а"), "2411а ЕСВ (базовый, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2421"), "2421 ЕСВ (больничные).mtd", updater
+	updatemethod Workarea.GetCodeID("2421а"), "2421а ЕСВ (больничные, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2431"), "2431 ЕСВ (трудовой договор).mtd", updater
+	updatemethod Workarea.GetCodeID("2431а"), "2431а ЕСВ (трудовой договор, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2441"), "2441 Льгота по НДФЛ.mtd", updater
+
+	updater.refresh
+
+End Sub
+
+'-------
+'
+'-------
+Function FindCodeFolder(FldName, FldRoot)
+	Dim FldID
+	Dim Fld
+	Dim i
+
+	With FldRoot
+		For i = 1 To .Count
+			With .Item(i)
+				If .Type = 0 Then
+					If .Name = FldName Then
+						Set FindCodeFolder = FldRoot.Item(i).Children
+						Exit Function
+					End If
+				End If
+			End With
+		Next
+
+		Set Fld = FldRoot.Create(0, "", FldName)
+		Set FindCodeFolder = Fld.Children
+
+	End With
+End Function
+'-------
+'
+'-------
+Sub AddNewFOT(updater)
+	Dim RootFolder, NewCode
+
+	If updater.fail Then Exit Sub
+
+'	Set RootFolder = FindCodeFolder("ФОТ", Workarea.Codes)
+
+End Sub
+'-------
+'
+'-------
+Sub AddNewForm(updater)
+	If updater.fail Then Exit Sub
+	AddFormAndFolder "Удержания", "1. Обязательные с 01.2011", "Идеал_Обязательные удержания c 010111", updater
+	AddFormAndFolder "Выплаты", "Аванс развернуто с 01012011", "Идеал_Аванс_развернуто с 01012011", updater
+End Sub

@@ -1,0 +1,161 @@
+'-----------
+'	Идеал 112
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const CURR_YEAR = 2019
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	updateindextables updater
+	If Not updater.fail Then updatetaxtables(updater)
+	If Not updater.fail Then udpatecalendar(updater)
+End Sub
+'----
+'
+'----
+Sub updateindextables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2019", updater
+	SetUTFieldValue UTableID, fMonth, "Февраль 2019", updater
+	SetUTFieldValue UTableID, fMonth, "Март 2019", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+'----
+'
+'----
+Sub updatetaxtables(updater)
+	Dim UTableID
+
+	If MsgBox("Обновлять ставки налогообложения c января 2019 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Максимальный доход для НДФЛ", 0.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 62595.00, updater		'25 ПМ
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 1853.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 2594.2, updater	'1,4 * 1378
+		UpdateUTFieldValue UTableID, "Размер льготы", 926.5, updater
+	End If	
+
+End Sub
+'----
+'
+'----
+Sub udpatecalendar(updater)
+	Dim i, SQL1, SQL2, SQL3
+	Dim Days, Hours, pp_id
+	Dim DefTableID
+	
+	Days = Array(21, 20, 20, 21, 21, 18, 23, 21, 21, 22, 21, 21)
+	Hours = Array(168, 160, 159, 167, 167, 143, 184, 167, 168, 176, 168, 166)
+	
+	SQL1 = "insert into p_period (pp_type, pp_month, pp_year) values (0, "
+	SQL2 = "insert into time_table_values (tt_id, pp_id, ttv_days, TTV_HOURS) values ("
+	
+	DefTableID = GetDefTable()
+	
+	For i = 1 To 12
+		If FindPeriod(i, CURR_YEAR) = 0 Then
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL1 & i & ", " & CURR_YEAR & ")"
+			Else
+				RunSQL SQL1 & i & ", " & CURR_YEAR & ")"
+			End If
+
+			pp_id = FindPeriod(i, CURR_YEAR)
+
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			Else
+				RunSQL SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			End If
+		End If
+	Next
+	
+	SQL3 = "insert into time_table_holidays (tth_year, tth_1, tth_2, tth_3, tth_4, tth_5, tth_6, tth_7, tth_8, tth_9, tth_10, tth_11, tth_12) values ("
+	SQL3 = SQL3 & CURR_YEAR & ",65,0,128,268435456,259,65536,0,41943040,0,8192,0,16777216)"
+
+	If Not find_holidays(CURR_YEAR) Then
+		If app.appType = "DAO" Then
+			workarea.daodatabase.execute SQL3
+		Else
+			RunSQL SQL3
+		End If
+	End If
+End Sub
+'----
+'
+'----
+

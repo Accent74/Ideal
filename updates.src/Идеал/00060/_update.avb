@@ -1,0 +1,131 @@
+'-----------
+'	Идеал 060
+'	модуль обновления 
+'-----------
+
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddFormAndFolder "Выплаты", "Аванс развернуто с 01012011 (сумма вручную)", "Идеал_Аванс_развернуто с 01012011(сумма вручную)", updater
+	AddFormAndFolder "Прочее", "Справка для субсидии", "Идеал_Справка о доходах(субсидия)", updater
+	AddFormAndFolder "Удержания", "Корректировка удержаний 2011", "Идеал_Корректировка удержаний2011", updater
+
+	AddNewCodes updater
+	'AddReports updater
+	UpdateMethods updater
+
+	runscript updater
+	SetNewTax updater
+	updatetables updater
+	
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "060.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub UpdateMethods(updater)
+	updatemethod Workarea.GetCodeID("0117-03"),"0117-03 Начислен аванс с 01.01.2011 (вручную).mtd", updater
+	updatemethod Workarea.GetCodeID("2401"), "2401 НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("2402"), "2402 НДФЛ (шахтеры).mtd", updater
+	updatemethod Workarea.GetCodeID("2411"), "2411 ЕСВ (базовый).mtd", updater
+	updatemethod Workarea.GetCodeID("2411а"), "2411а ЕСВ (базовый, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2421"), "2421 ЕСВ (больничные).mtd", updater
+	updatemethod Workarea.GetCodeID("2421а"), "2421а ЕСВ (больничные, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2431"), "2431 ЕСВ (трудовой договор).mtd", updater
+	updatemethod Workarea.GetCodeID("2431а"), "2431а ЕСВ (трудовой договор, аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2441"), "2441 Льгота по НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("3020m"), "3020m Выплата аванса.mtd", updater
+End Sub
+'----
+'
+'----
+Sub AddNewCodes(updater)
+	AddCodes "0117", Array("0117-03 Начислен аванс с 01.01.2011 (вручную)"), 200, 2, updater
+	AddCodes "2400", Array("2401m НДФЛ (корректировка)"), 200, 0, updater
+	AddCodes "2410", Array("2411m ЕСВ (базовый, корректировка)"), 200, 0, updater
+	AddCodes "2420", Array("2421m ЕСВ (больничные, корректировка)"), 200, 0, updater
+	AddCodes "2430", Array("2431m ЕСВ (трудовой договор, корректировка)"), 200, 0, updater
+End Sub
+'----
+'
+'----
+Sub RunScript(updater)
+	Dim RD
+
+	Set RD = CreateLibObject("Redirect")
+
+	If App.Apptype = "DAO" Then
+		RunSQLFile_DAO RD.GetFullPath("ideal_060_dao.sql"), updater
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Апрель 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Май 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Июнь 2011", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+
+'----
+'
+'----
+Sub SetNewTax(updater)
+	Dim UTableID
+
+	If MsgBox("Обновлять ставки c апреля 2011 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Максимальный доход для НДФЛ", 9600, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 14400, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 960, updater
+	End If	
+
+End Sub
+
+'----
+'
+'----

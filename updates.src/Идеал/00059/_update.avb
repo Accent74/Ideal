@@ -1,0 +1,95 @@
+'-----------
+'	Идеал 059
+'	модуль обновления 
+'-----------
+
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddFormAndFolder "Выплаты", "Аванс развернуто с 01012011 (шахтеры)", "Идеал_Аванс_развернуто с 01012011 (шахтеры)", updater
+	AddFormAndFolder "Удержания", "2. Обязательные с 01.2011 (шахтеры)", "Идеал_Обязательные удержания c 010111 (шахтеры)", updater
+
+	AddNewCodes updater
+	CodesCheck updater
+	AddReports updater
+	updatemethods updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "059.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddReports(updater)
+	Dim AgID
+
+	AgID = workarea.browse(acAgent,,,, "Выберите корреспондента Моя фирма")
+
+	If AgID = 0 Then
+		updater.fail = True
+		updater.writelog "Ошибка: необходимо указать корреспондента для размещения отчетов"
+	Else
+		AddReport2 "ПОДАТКОВА ДЕКЛАРАЦІЯ З ПОДАТКУ НА ДОХОДИ ФІЗИЧНИХ ОСІБ", "НДФЛ.ash", 1, AgID, updater
+	End If
+End Sub
+
+'----
+'
+'----
+Sub UpdateMethods(updater)
+	updatemethod Workarea.GetCodeID("0117-02"),"0117-02 Начислен аванс с 01.01.2011.mtd", updater
+	updatemethod Workarea.GetCodeID("2441"), "2441 Льгота по НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("2402а"), "2402а НДФЛ (аванс, шахтеры).mtd", updater
+	updatemethod Workarea.GetCodeID("2402"), "2402 НДФЛ (шахтеры).mtd", updater
+	updatemethod Workarea.GetCodeID("2401"), "2401 НДФЛ.mtd", updater
+End Sub
+'----
+'
+'----
+Sub CodesCheck(updater)
+	Dim Code, RootFolder
+
+	CheckDEpends Array("0029"), Array("2400"), True, updater
+
+	SetCodeProps "2000", "ЕСВ базовый", Null, 1 + 8, updater
+	CheckDEpends Array("2000"), Array("0410","0420","0440","0450"), False, updater
+
+	SetCodeProps "2000а", "ЕСВ базовый (аванс)", Null, 1 + 8, updater
+
+	SetCodeProps "2001", "ЕСВ, инвалиды (8,41%)", 8.41, 2, updater
+	CheckDEpends Array("2001"), Array("0410","0420","0440","0450"), False, updater
+
+	SetCodeProps "2001а", "ЕСВ, инвалиды (8,41%) (аванс)", 8.41, 2, updater
+
+	Set RootFolder = FindCodeFolder("ФОТ", Workarea.Codes)
+	CreateFOTCode "2002", "ЕСВ, больничный (33,2%) для всех", 0, RootFolder, updater
+
+	CheckDEpends Array("2002"), Array("0410","0420","0440","0450"), True, updater
+	SetCodeProps "2002", Null, 33.2, 0, updater
+
+	CreateFOTCode "2003", "ЕСВ ГПД (34,7%)", 0, RootFolder, updater
+	SetCodeProps "2003", Null, 34.7, 8, updater
+
+End Sub
+'----
+'
+'----
+Sub AddNewCodes(updater)
+	AddCodes "2400а", Array("2402а НДФЛ (аванс, шахтеры)"), 200, 2, updater
+	AddCodes "2400", Array("2402 НДФЛ (шахтеры)"), 200, 2, updater
+End Sub
+'----
+'
+'----

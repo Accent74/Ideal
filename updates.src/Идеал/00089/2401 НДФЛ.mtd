@@ -1,0 +1,147 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 17:30:56
+'= Автор  : admin
+'= Код    : 2400 НДФЛ
+'= Метод  : НДФЛ
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TaxSum, PrevTaxSum
+	Dim ES, SumTaxOver, IsNew
+	Dim TaxBase
+
+	With Tr
+		.Tariff = .DependsW.Sum '+ PrevTaxSum
+		If .Tariff < 0 Then .Tariff = 0
+
+		IsNew = (.WPeriod.Year > 2012 Or (.WPeriod.Year = 2012 And .WPeriod.Month > 3))
+
+		If IsNew Then
+			' исключаем сумму налога, начисленного на аванс
+			PrevTaxSum = GetSumAgByMtdPP(.AgID, workarea.getcodeid("2400а"), .CperiodID)
+			TaxBase = .tariff 
+		Else
+			' исключаем сумму налога, начисленного на аванс
+			PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+			TaxBase = .DependsW.SumIN '+ PrevTaxSum
+		End If
+
+		If TaxBase > .Sum3 Then
+			If IsNew Then
+				TaxSum = CalcTaxNew(Tr, TaxBase)
+			Else
+				TaxSum = CalcTaxOld(Tr, TaxBase)
+			End If
+
+			TaxSum = Round2(TaxSum, 2)
+
+		Else
+			TaxSum = Round2(.Tariff * 0.15, 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum - .LookUp.SumWD
+
+		'	по просьбам трудящихся (беженцев и угнетенных ДНР) 
+		'If .Sum < 0 Then .Sum = 0
+	End With
+End Sub
+'---
+'
+'---
+Function CalcTaxNew(Tr, TaxBase)
+	CalcTaxNew = tr.Sum3 * 0.15 + (TaxBase - Tr.Sum3) * iif(Tr.WPeriod.Year < 2015, 0.17, 0.2)
+End Function
+'---
+'
+'---
+
+Function CalcTaxOld(Tr, TaxBase)
+	Dim PayAche, PayRoll
+	Dim TaxSum, SumTaxOver
+
+	With Tr
+
+		PayAche = GetCodeSumW(.Depends, "0046")
+		PayRoll = TaxBase - PayAche
+
+		If TaxBase > .Sum2 Then
+			SumTaxOver = (.Sum2 - .Sum3)
+		Else
+			SumTaxOver = (TaxBase - .Sum3)
+		End If
+
+		If PayAche = 0 Then
+			TaxSum = .Sum3 * 0.964 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.036) * 0.17
+		ElseIf PayRoll = 0 Then
+			TaxSum = .Sum3 * 0.98 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.17
+		Else
+			TaxSum = PayRoll * 0.964 * 0.15
+			TaxSum = TaxSum + (PayAche - TaxBase + .Sum3) * 0.98 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.17
+		End If
+
+		CalcTaxOld = TaxSum
+	End With
+End Function
+'---
+'
+'---
+Function GetCodeSumW(Deps, Code)
+	Dim i, CodeDeps, SumW
+
+	CodeID = Workarea.GetCodeID(Code)
+	SumW = 0
+
+	If CodeID <> 0 Then
+	
+		Set CodeDeps = Workarea.Code(CodeID).Depends
+
+		For i = 1 To CodeDeps.Count
+			SumW = SumW + GetCodeSum(deps, CodeDeps.Item(i).Code)
+		Next
+	End If
+
+	GetCodeSumW = SumW
+
+End Function
+'---
+'
+'---
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+End Function
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		' Максимальный доход для НДФЛ
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+
+		' Максимальный доход
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		
+	End With
+End Sub
+'---
+'
+'---
+
+
+

@@ -1,0 +1,28 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 22/12/2005 21:01:44
+'= Автор  : admin
+'= Код    : 3020 Аванс
+'= Метод  : Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+
+	With Tr
+		If .ApplySource = "AgentID" Then
+			With .Agent
+				If .Prop("% оклада для аванса") <> 0 Then
+					Tr.Tariff = Round2(.Prop("Оклад") * .Prop("% оклада для аванса") / 100, 0)
+				Else
+					Tr.Tariff = 0
+				End If
+			End With
+		End If
+	End With
+End Sub
+

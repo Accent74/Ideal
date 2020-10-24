@@ -1,0 +1,34 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 01/09/2006 17:22:22
+'= Автор  : admin
+'= Код    : 2110 Пенсионный фонд
+'= Метод  : Пенсионный Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .DependsW.Sum
+
+		If .CPeriod < 2007 Then
+			.Sum1 = .Tariff * .Sum2 / 100
+		Else
+			If .Tariff > LivingWage Then
+				.Sum1 = LivingWage * 0.005 + (BaseSum - .Tariff) * 0.02
+			Else
+				.Sum1 = .Tariff * 0.02
+			End If
+		End If
+
+		.Sum = .Sum1
+	End With
+
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		.Sum2 = 2.0
+	End With
+End Sub
+
+

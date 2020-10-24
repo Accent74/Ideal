@@ -1,0 +1,17 @@
+Option Explicit
+
+Sub Workarea_OnLoad
+	Dim msgb
+'	Dim dlg
+'	Set dlg = App.CreateDialog("version.adg")
+'	If dlg Is Nothing Then Exit Sub
+'	dlg.DoModal
+	
+	Set msgb = msg
+
+	With msgb
+		.visible = True
+		.write "Акцент-заработная плата версия " & app.Version, vbInformation
+		.write "Типовое решение Идеал версия " & workarea.userparam("CONFIG_VERSION1"), vbInformation
+	End With
+End Sub

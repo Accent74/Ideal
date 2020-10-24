@@ -1,0 +1,60 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=windows-1251"> 
+<link rel="stylesheet" type="text/css" href="default.css">
+<title>7.0.424</title>
+</head>
+<body>
+<h1>Версия 7.0.424 (08 января 2004)</h1>
+<table class="navtable"><tr>
+<td class="navbar"><A href="default.htm">Содержание</A></td>
+<td class="navbaria">&lt;&lt;Предыдущая</td>
+<td class="navbaria">Следующая&gt;&gt;</td>
+<td with="*">&nbsp;</td>
+</tr></table><hr noshade size=1 color=silver class="hrnav">
+<div class="h2x">Акцент 7.0</div>
+<ul>
+<li>Изменен механизм запуска программы под управлением <i>OLE-automation</i>.
+  Теперь каждый вызов <b>CreateObject</b> с аргументом <b>Accent7.Workarea</b>
+  (или <b>Accent7s.Workarea</b> для SQL-версии) открывает новый 
+  экземпляр программы. Кроме того, теперь можно программно запускать новые копии 
+  <i>Акцент</i> из форм, диалогов, таблиц и модулей. Такой подход 
+  позволит упростить разработку программ импорта-экспорта.<br>
+  <span class="attn">Обратите внимание</span>, что открывать 
+  БД под управлением <i>OLE-automation</i> следует
+  с использованием метода <b>OpenDatabase2</b>.
+</ul>
+
+<div class="h2x">VBScript</div>
+<ul>
+<li>В объект <b>Workarea</b> добавлен метод <b>OpenDatabase2</b>,
+  который предназначен для открытия базы данных при работе программы 
+  под управлением <i>OLE-automation</i>.
+</ul>
+
+<div class="h2x">Акцент-зарплата 7.0</div>
+<ul>
+<li>Выпущена release-версия программы <i>Акцент-зарплата 7.0</i>
+  Для использования программы нужно получить файл лицензии.
+<li>Появился мастер полного расчета заработной платы. 
+  Запускается из основного меню. Позволяет выполнять массовые операции по 
+  созданию и расчету проводок. 
+       
+<li>Теперь файл <tt>stdpayroll.chm</tt> (содержимое этого файла показывается
+  в окне <b>"Задачи"</b>) сначала ищется с использованием <b>ard</b>-файла. 
+  Если файл не найден, то берется файл, который находится в папке
+  с программой.      
+</ul>
+
+<div class="h2x">Акцент-администратор 7.0</div>
+<ul>
+<li>Выпущена release-версия программы <i>Акцент-администратор 7.0</i>
+	Для использования программы теперь нужно получить файл
+	лицензии. Обновления будут доступны на www-сайте.
+</ul>
+<table class="mailto">
+<tr><td><A href="mailto:support@accent7.com"><img src="art/mail.gif" border=0></A>&nbsp;</td>
+<td>Если у вас есть замечания или пожелания, <A href="mailto:support@accent7.com">напишите нам</A>.</td></tr>
+</table>
+</body>
+</html>

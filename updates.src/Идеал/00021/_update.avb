@@ -1,0 +1,37 @@
+'-----------
+'	Идеал 021
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "definition.avb"
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim FormID
+	Dim i
+
+	EnumLGID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+	EnumDID = workarea.enum(ENUM_DISDOHOD).ItemID(1)
+
+	With Workarea
+		.Code(.GetSysCodeID("&ОПП")).SetScriptFromFile("Общие подпрограммы.mtd")
+	End With
+
+	With WorkArea
+		.Code(.GetCodeID("3020m")).SetScriptFromFile "3020m Аванс.mtd"
+	End With
+
+	CheckDEpends Array("3020"), Array("2100","2110","2120","2130","2140")
+	CheckDEpends Array("091"), Array("0115","0250","0260","0270","0320","0410","0420","0430","0440","0450","0510", "0520","0530")
+
+	CheckWorker WorkArea.Agents
+
+	WorkArea.UserParam("CONFIG_DBVERSION1") = 21
+	ShowWhatsNew "WhatNewIdeal.chm", "021.htm"
+
+End Sub

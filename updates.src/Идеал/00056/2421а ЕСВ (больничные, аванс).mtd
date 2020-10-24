@@ -1,0 +1,78 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 16:10:17
+'= Автор  : admin
+'= Код    : 2420а ЕСВ (больничные, аванс)
+'= Метод  : ЕСВ (больничные, аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+
+	With Tr
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+								CalcDependsCodeSum("2410а", .DependsW)
+		' посчитали сумму аванса по налогу
+		PrevTax = GetCodeSum(.DependsW, "2421а")
+
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If .Tariff < MaxSum Or MaxSum < 0 Then
+			BaseSum = .Tariff
+		Else
+			BaseSum = MaxSum
+		End If
+
+		.Sum = BaseSum * .Sum3 - PrevTax
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+	
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+

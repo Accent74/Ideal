@@ -1,0 +1,79 @@
+'==============================================
+'= "Идеал" 06
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 08/12/2003 16:22:24
+'= Автор  : Alib Ezbar
+'= Код    : 2100 Подоходный налог
+'= Метод  : Подоходный налог (13%)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dis,ss
+	Dim mm,yy,u
+	Dim lk
+	Dim Rez
+
+	dis = 0.
+	ss = 0
+	max = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_DLTM,2)
+	With Tr
+
+		Select Case workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+			Case "07"
+				.Tariff = GetSumP(.DependsW)
+				.Sum = Round2(.Tariff * 0.13, 2)
+			Case Else
+				If .Agent.Prop(PROP_TRUD) = False Then
+
+					If IsNull(.Agent.Prop(PROP_UVOLEN)) Then
+						u = False
+					Else
+						mm = Month(.Agent.Prop(PROP_UVOLEN))
+						yy = Year(.Agent.Prop(PROP_UVOLEN))
+						u = Month(.wperiod.firstday) = mm And Year(.wperiod.firstday) = yy
+					End If
+
+					Rez = GetSumP(.DependsW)
+
+					If Rez < max And Not u Then
+						.Tariff = .DependsW.Sum
+						If .sum1>0 Then
+							dis = CCur(Replace(workarea.enum(ENUM_DISCOUNT).itemtagid(.sum1),"%",""))/100
+						Else
+							dis = 0
+						End If
+						If .sum3 > 0 And dis > 1 Then dis = dis * .sum3
+						.Sum = Round2((.Tariff - WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_DPAY,2) * dis) * 0.13, 2)
+						If .sum <0 Then .sum = 0
+					Else
+						.Tariff = .DependsW.Sum
+						.Sum = Round2(.Tariff * 0.13, 2)
+					End If
+				Else
+					.Tariff = GetSumP(.DependsW)
+					.Sum = Round2(.Tariff * 0.13, 2)
+				End If
+		End Select
+
+		Set lk = .LookUp
+		.Sum = .Sum - lk.SumWD
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		.sum1 = .Agent.Prop(PROP_DISQUANT_TAG, .wperiod.firstday)
+		.sum3 = .Agent.Prop(PROP_DISCHILD_TAG, .wperiod.firstday)
+
+		' Признак дохода
+		If .Agent.Prop(PROP_DISDOHOD_TAG, .wperiod.firstday) > 0 Then	_
+			.long1 = str2long(.Agent.Prop(PROP_DISDOHOD_TAG, .wperiod.firstday))
+
+		' Признак льготы
+		If .sum1 > 0 Then _
+			.long2 = str2long(.Agent.Prop(PROP_DISQUANT_TAG, .wperiod.firstday))	
+'			.long2 = str2long(workarea.enum(ENUM_DISCOUNT).itemtagid(.sum1))
+	End With
+End Sub

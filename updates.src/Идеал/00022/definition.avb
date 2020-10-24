@@ -1,0 +1,201 @@
+'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/02/2005 15:20
+'= Автор  : Alib Ezbar
+'==============================================
+'= Глобальный внешний модуль
+'==============================================
+
+' Названия свойств
+'==============================================
+Const PROP_SALARY_TAG			= "Оклад"
+Const PROP_PERHOUR_TAG		= "Тариф за час"
+Const PROP_GRAPH_TAG			= "График"
+Const PROP_DISQUANT_TAG		= "Признак льготы"
+Const PROP_DISDOHOD_TAG		= "Признак дохода"
+Const PROP_DB						= "Счёт затрат"
+Const PROP_DISCHILD_TAG		= "Количество детей"
+Const PROP_ALI						= "Процент алиментов"
+Const PROP_PENS					= "Дата выхoда на пенсию"
+Const PROP_UVOLEN				= "Дата увольнения"
+Const PROP_DISAB					= "Инвалид"
+Const PROP_TRUD					= "Трудовой договор"
+' для ЗАМЕЩЕНИЯ
+Const PROP_HOURS_ZAM 			= "Часы замещения"
+Const PROP_AG_ZAM 				= "Кого замещаем"
+Const PROP_FZAM1_TAG			= "С"
+Const PROP_TZAM1_TAG			= "По"
+Const PROP_PZAM_TAG				= "% Оклада"
+Const PROP_OZAM_TAG				= "Приказ"
+
+' Названия параметров подразделений
+'==============================================
+Const PRM_DB						=	"Счёт затрат"
+
+' Перечисления
+'==============================================
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+
+' Пользовательские таблицы
+'==============================================
+Dim USRTBL_INID				
+USRTBL_INID = workarea.GetSysUTableID("ДПЛ") ' Таблица "Размеры доплат"
+
+Const USRTBL_NIGHT				= "Ночные"
+Const USRTBL_EVENING			= "Вечерние"
+Const USRTBL_OVERTIME			= "Сверхурочные"
+Const USRTBL_HOLIDAY			= "Праздничные"
+Const PROP_TRADE					= "Трудовое соглашение"
+'----------------------------------------------
+Dim USRTBL_LGT
+USRTBL_LGT = workarea.GetSysUTableID("ПДТ") ' Таблица "Подоходный налог"
+
+Const USRTBL_DPAY				= "Размер льготы"
+Const USRTBL_DLTM				= "Максимальный льготный доход"
+Const USRTBL_MINLIF				= "Прожиточный минимум"
+Const USRTBL_MAXCY				= "Максимальный доход"
+'----------------------------------------------
+Dim USRTBL_ONE
+USRTBL_ONE = workarea.GetSysUTableID("КОД") ' Таблица "Реквизиты предприятия"
+
+Dim USRTBL_DOP
+USRTBL_DOP = workarea.GetSysUTableID("ДРП") ' Таблица "Реквизиты предприятия (доп.)"
+
+Dim USRTBL_REG
+USRTBL_REG = workarea.GetSysUTableID("НПФ") ' Таблица "Регистрационные номера"
+
+' Прочие
+'==============================================
+Const VALUE_NDS_PERCENT		= 20
+Const VALUE_PDN_PERCENT		= 13
+Const lvlTariff					= 50 ' Порог, когда оклад считается тарифом "<"
+Const MAX_LEVEL_SS				= 365 ' соцстрах, больше - 1%, меньше 0,5%
+Dim MAX_FOUND_CY
+
+MAX_FOUND_CY = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+
+'==============================================
+Function GetUTID(tblCode)
+	Dim sql,rs,rez
+
+	MsgBox "Функция GetUTID устарела !"
+	sql = "Select UT_ID from USR_TABLES where UT_CODE='"&tblCode&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	rez = 0
+	If Not rs.eof Then _
+		rez = rs("UT_ID")
+	GetUTID = rez
+
+End Function
+
+
+'==============================================
+Function GetSumByCodePP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByCodePP = rez
+End Function
+
+
+'==============================================
+Function GetSumByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_SUM>" & CStr(MAX_FOUND_CY) & "," & CStr(MAX_FOUND_CY) & ",JP_SUM)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByMtdPP = rez
+End Function
+
+'==============================================
+Function GetTariffByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_TARIFF>" & CStr(MAX_FOUND_CY) & "," & CStr(MAX_FOUND_CY) & ",JP_TARIFF)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&mtdID&" AND JP_SUM>0 And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetTariffByMtdPP = rez
+End Function
+
+
+'==============================================
+Function GetFotPercent(codeName)
+	Dim rez,rs,sql
+	rez = 0
+	sql = "SELECT MTD_PERCENT FROM MTD_CODES WHERE " & _
+		" MTD_CODE = '" & codeName &"'"
+	InitRS rs,sql
+	If Not rs.eof Then _
+		rez = rs("MTD_PERCENT")
+	GetFotPercent = rez	
+End Function
+
+
+'==============================================
+Sub InitRS(ByRef rs, sql) ' простая инициализация
+	Dim db,qd 	' для ADO
+	Dim cn,cmd	' для SQL
+	Select Case app.appType
+		Case "DAO":
+			Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+		Case "OLEDB", "SQL" :
+			Set cn = WorkArea.ADOConnection
+			Set cmd = CreateObject("AdoDb.Command")
+			Set cmd.ActiveConnection = cn
+			cmd.commandText = sql
+			Set rs = cmd.execute
+	End Select
+	' передаём созданный RS в основную программу	
+End Sub
+
+'==============================================
+Function GetFotMax(codeName)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "SELECT MTD_THRESHOLD FROM MTD_CODES WHERE " & _
+			" MTD_CODE = '" & codeName &"'"
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("MTD_THRESHOLD")		
+	GetFotMax = rez
+End Function
+
+'==============================================
+Function GetHoursByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_HOURS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetHoursByMtd = rez / 10
+End Function
+
+'==============================================
+Function GetDaysByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_DAYS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetDaysByMtd = rez * 8
+End Function
+
+
+

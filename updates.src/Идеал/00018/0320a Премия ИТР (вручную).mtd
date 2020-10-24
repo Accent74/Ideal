@@ -1,0 +1,31 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:27:38
+'= Автор  : admin
+'= Код    : 0320 Премия
+'= Метод  : Премия ИТР (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+	With Tr
+		.tariff = .DependsW.Sum
+		If .sum1 <> 0 Then
+			s = .tariff / 100.0 * CDbl(.sum1)
+			.Sum2 = s ' ЭТА ШТУКА СБРОСИТ SUM !, ПОЭТОМУ ПРИСВАИВАНИЕ .SUM ДОЛЖНО БЫТЬ ПОСЛЕДНИМ!!!!
+			.Sum = s
+		Else
+			.Sum = .Sum2
+		End If
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+
+	With Tr
+		If .ApplySource = "AgentID" Then
+			SetDb(Tr)			
+			tr.Sum1 = .Agent.Prop("Премия, %")
+		End If
+	End With
+End Sub

@@ -1,0 +1,51 @@
+'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 12/05/2004 14:39:12
+'= Автор  : Alib Ezbar
+'= Код    : 0110 Основная зарплата
+'= Метод  : Тариф за час
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	With Tr
+		bOk = True
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан тариф за час"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		.Sum = .Tariff * .Hours
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub	
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		If .tariff = 0 Then 
+			.AgID = 0
+			Exit Sub
+		End If
+		If .ghours = 0 Then
+'			Получаем график и факт
+			Global_SetHours Tr, True, True, .wperiod
+		Else
+'			Получаем график
+			Global_SetHours Tr, False, True, .wperiod
+		End If
+		.Sum1 = .Agent.Prop("Премия, %")
+		SetDb(Tr)
+	End With
+End Sub

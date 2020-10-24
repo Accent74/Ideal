@@ -1,0 +1,24 @@
+'-----------
+'	Идеал 024
+'	модуль обновления 
+'-----------
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim NewCode
+
+	With WorkArea
+		With .Code(.GetCodeID("2100")).Children
+			Set NewCode = .Create(200, "2103", "Подоходный для перерасчета")
+		End With
+	End With
+
+	WorkArea.UserParam("CONFIG_DBVERSION1") = 24
+	ShowWhatsNew "WhatNewIdeal.chm", "024.htm"
+
+End Sub

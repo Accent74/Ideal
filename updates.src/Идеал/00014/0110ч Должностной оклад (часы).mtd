@@ -1,0 +1,75 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : Impact Group Ltd.
+'= Код    : 001 Основная зарплата
+'= Метод  : Должностной оклад (часы)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	With Tr
+		bOk = True
+		If .GHours = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage("Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage("Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 And .Days = 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage("Для '%A' не указано количество отработанных часов/дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		If .Hours > 0 Then
+			.Sum = Round2(.Tariff / .GHours * .Hours , 2) 
+		Else
+			.Sum = Round2(.Tariff / .GDays * .Days , 2) 
+		End If
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	Dim rez
+
+	With Tr
+		If .AgID = 0 Then Exit Sub	
+
+		If .Agent.Prop("Дата приема")>.wperiod.lastday Then 
+			Msg.Write .FormatMessage("Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday) > 0 Then
+			Msg.Write .FormatMessage("Внимание! Для '%A' оплата в часах."), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			.AgID = 0
+			Exit Sub
+		End If
+
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		If .ghours = 0 Then
+'			Получаем график и факт
+			Global_SetHours Tr, True, True, .wperiod
+			Global_SetDays Tr, True, True, .wperiod
+		Else
+'			Получаем график
+			Global_SetHours Tr, False, True, .wperiod
+			Global_SetDays Tr, False, True, .wperiod
+		End If
+		SetDb(Tr)
+	End With
+End Sub

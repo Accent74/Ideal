@@ -1,0 +1,89 @@
+'-----------
+'	Идеал 038
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+
+	UpdateCodeScript "2110а-2", "2110а-2 Пенсионный фонд 2% (аванс).mtd", Updater
+	UpdateCodeScript "2110п", "2110п Пенсионный 2%.mtd", Updater
+
+	UpdateCodeScript WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", Updater
+	updater.refresh
+
+	updatetables updater
+	updater.refresh
+
+	addnewforms updater
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "038.htm"
+
+End Sub
+
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2008"
+	SetUTFieldValue UTableID, fMonth, "Февраль 2008"
+	SetUTFieldValue UTableID, fMonth, "Март 2008"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+	If MsgBox("Обновлять ставки 2008 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Размер льготы", 257.50, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 890, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 9495, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 633, updater
+	End If
+
+End Sub
+'----
+'
+'----
+Sub addnewforms(updater)
+	Dim FormID
+	Dim Flds
+
+	FormID = AddProjItem(1, "Идеал_Аванс_развернуто с 01012008", "Идеал_Аванс_развернуто с 01012008.afm", True, updater)
+	AddFolder "Выплаты", "Аванс развернуто с 01.08", FormID, "АР08"
+
+	FormID = AddProjItem(1, "Идеал_Обязательные удержания c 010108", "Идеал_Обязательные удержания c 010108.afm", True, updater)
+	AddFolder "Удержания", "Обязательные с 01.08", FormID, "ОУ08"
+
+End Sub

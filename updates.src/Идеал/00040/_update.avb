@@ -1,0 +1,28 @@
+'-----------
+'	Идеал 040
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+
+	AddReports
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "040.htm"
+
+End Sub
+
+Sub AddReports
+	AddReport "ФСС БР 2008", "ФСС БР.ash"
+	AddReport "Розрахунок збору пенсiйного страхування (Додаток 23) 2008", "Розрахунок збору пенсiйного страхування (Додаток 23).ash"
+End Sub
+'----
+'
+'----

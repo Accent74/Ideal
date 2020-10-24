@@ -1,0 +1,93 @@
+BODY
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+A:link
+{
+    COLOR: blue
+}
+A:visited
+{
+    COLOR: blue
+}
+A:active
+{
+    COLOR: blue
+}
+A:hover
+{
+    COLOR: darkorange
+}
+
+H1
+{
+    FONT-WEIGHT: bold;
+    FONT-SIZE: 10pt;
+}
+
+DIV
+{
+  DISPLAY: inline;
+}
+
+SPAN.Webdings
+{
+  DISPLAY: inline;
+  FONT-FAMILY: Webdings;
+  FONT-SIZE: 8pt;
+}
+
+TABLE
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial;
+}
+
+
+INPUT.BTN 
+{
+  BORDER-RIGHT: steelblue 1px solid; 
+  BORDER-TOP: silver 1px solid; 
+  BORDER-LEFT: silver 1px solid; 
+  BORDER-BOTTOM: steelblue 1px solid; 
+  FONT-WEIGHT: bold; 
+  FONT-SIZE: 8pt; 
+  COLOR: black; 
+  FONT-FAMILY: Verdana; HEIGHT: 24px; 
+  BACKGROUND-COLOR: #c0d4ee;
+  HEIGHT:24px;
+  WIDTH:76px;
+}
+
+.contextMenuItem 
+{
+	cursor: hand; 
+	padding:3px 10px 3px 10px;
+    display: block;
+    white-space: nowrap;
+}
+
+.contextHighlightItem 
+{
+	cursor:hand; 
+	padding:3px 10px 3px 10px; 
+	background-color:steelblue; 
+	color:white; 
+	font-weight:bold;
+    display: block;
+    white-space: nowrap;
+}
+
+.contextMenuBody 
+{
+   padding:2px; border:1px solid gray;
+   background-color:lightsteelblue;
+   color:black;
+   text-decoration:none;
+   position:absolute;
+   filter:progid:DXImageTransform.Microsoft.Shadow(direction=135,color=#dddddd,strength=5);
+   width:200px;
+   display: block;
+   behavior:url(contextmenu.htc);
+}

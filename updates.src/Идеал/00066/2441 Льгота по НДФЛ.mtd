@@ -1,0 +1,93 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 18:21:58
+'= Автор  : admin
+'= Код    : 2440 Льгота по НДФЛ
+'= Метод  : Льгота по НДФЛ
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dismiss
+	Dim AgSum, ChildSum
+	Dim MaxSum
+
+	With Tr
+		.Sum1 = 0
+		.Tariff = 0
+
+		If .String1 <> "02" Then
+			If .Agent.Prop(PROP_TRUD) = False Then
+
+				If IsNull(.Agent.Prop(PROP_UVOLEN)) Then
+					dismiss = False
+				Else
+					mm = Month(.Agent.Prop(PROP_UVOLEN))
+					yy = Year(.Agent.Prop(PROP_UVOLEN))
+					dismiss = (Month(.wperiod.firstday) < mm And Year(.wperiod.firstday) <= yy)
+				End If
+
+				If Not dismiss Then 
+					.Tariff = .DependsW.Sum
+					If .Tariff <> 0 Then
+
+						If Not .Long3 Then
+							MaxSum = .Sum2
+						Else
+							MaxSum = .Sum2 * .Long1
+						End If
+
+						AgSum = 0
+
+						If MaxSum => .Tariff Then
+							Select Case .String2
+								Case "01"						' 	100%
+									AgSum = .Sum3 
+								Case "02"						'	150% * кол-во детей
+									AgSum = .Sum3 * 1.5
+									If .Long1 <> 0 Then AgSum = AgSum * .Long1		
+								Case "03"						'	200%
+									AgSum = .Sum3 * 2
+									If .Long1 <> 0 Then AgSum = AgSum * .Long1
+								Case "04"						'	100% * кол-во детей
+									If .Long1 <> 0 Then AgSum = .Sum3 * .Long1		
+
+							End Select
+						End If
+
+						.Sum1 = AgSum - .LookUp.SumWD
+					End If
+				End If
+			End If
+		End If
+		.Sum = .Sum1
+	End With
+End Sub
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim Ag
+	Dim Tbl
+
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			Set Ag = .Agent
+			.Long1 = Ag.Prop(PROP_DISCHILD_TAG)	'	количество детей
+			.Long2 = Ag.Prop(PROP_DISQUANT_TAG)	'	признак льготы
+			.Long3 = Ag.Prop(PROP_ADD_LGT)			'	увеличивать максимальный льготный доход
+
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(Ag.Prop(PROP_DISDOHOD_TAG))	' Признак дохода
+			.String2 = workarea.enum(ENUM_DISCOUNT).ItemNameID(.Long2) 								' признак льготы
+
+			Set Tbl = WorkArea.UTable(USRTBL_LGT)
+
+			.Sum2 = Tbl.GetValue(1,USRTBL_DLTM,2)		' Максимальный льготный доход
+			.Sum3 = Tbl.GetValue(1,USRTBL_DPAY,2)		' Размер льготы
+
+		End If
+	End With
+End Sub
+'----
+'
+'----
+
+

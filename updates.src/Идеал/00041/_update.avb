@@ -1,0 +1,87 @@
+'-----------
+'	Идеал 041
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+
+	updatetables updater
+	updater.refresh
+	If App.AppType = "OLEDB" Then updatescript updater
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "041.htm"
+
+End Sub
+'----
+'
+'----
+Sub updatescript(updater)
+	Dim RD
+	Dim FilePath
+
+	Set RD = CreateLibObject("Redirect")
+	FilePath = Rd.GetFullPath("ideal_num2pos.sql")
+	
+	If FilePath <> "" Then
+		RunSQLFile(FilePath)
+		updater.writelog "База данных обновлена скриптом ideal_num2pos.sql."
+	Else
+		updater.writelog "Невозможно обновить скрипт базы данных. Файл ideal_num2pos.sql не найден."
+		updater.fail = True
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Апрель 2008"
+	SetUTFieldValue UTableID, fMonth, "Май 2008"
+	SetUTFieldValue UTableID, fMonth, "Июнь 2008"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+	SetUTFieldValue UTableID, fMonth, "Июль 2008"
+	SetUTFieldValue UTableID, fMonth, "Август 2008"
+	SetUTFieldValue UTableID, fMonth, "Сентябрь 2008"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+End Sub
+'----
+'
+'----
+Sub AddReports
+	AddReport "ФСС БР 2008", "ФСС БР.ash"
+	AddReport "Розрахунок збору пенсiйного страхування (Додаток 23) 2008", "Розрахунок збору пенсiйного страхування (Додаток 23).ash"
+End Sub
+'----
+'
+'----

@@ -1,0 +1,39 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 01/09/2006 21:44:15
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		CalcSum = .Sum1
+		If CalcSum = 0 Then CalcSum = .tariff
+		.Tariff = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim CalcSum
+
+	With Tr
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			With .Agent
+				If .Prop("% оклада для аванса") <> 0 Then
+					CalcSum = Round2(.Prop("Оклад") * .Prop("% оклада для аванса") / 100, 0)
+				Else
+					CalcSum = 0
+				End If
+			End With
+
+			.Sum1 = CalcSum
+
+		End If
+	End With
+
+
+End Sub

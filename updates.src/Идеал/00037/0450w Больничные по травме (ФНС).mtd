@@ -1,0 +1,33 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 30/09/2005 10:38:33
+'= Автор  : admin
+'= Код    : 0450 Больничные по травме (ФНС)
+'= Метод  : Больничные по травме (ФНС)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+		.sum = .sum2 / 100 * .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type <> 3 Then Exit Sub
+	End With
+End Sub

@@ -1,0 +1,193 @@
+'-----------
+'	Идеал 044
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim UTableID
+
+	AddAgProp Updater
+	updater.refresh
+	If Not Updater.fail Then updatetables updater
+	updater.refresh
+	If Not Updater.fail Then updatemethods updater
+
+	If MsgBox("Обновлять ставки 2009 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Размер льготы", 302.50, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 940, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 10035, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 669, updater
+
+		
+
+	End If	
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "044.htm"
+End Sub
+
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2009"
+	SetUTFieldValue UTableID, fMonth, "Февраль 2009"
+	SetUTFieldValue UTableID, fMonth, "Март 2009"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+End Sub
+'----
+'
+'----
+Sub AddAgProp(updater)
+	Dim NewAg
+	Dim IsAgAdd
+
+	Set NewAg = findAgent(Workarea.Agents)
+
+	If NewAg Is Nothing Then
+		Set NewAg = Workarea.Agents.Create(3, "Удали меня")
+
+		If NewAg Is Nothing Then
+			updater.writelog "Невозможно создать сотрудника"
+			updater.fail = True
+			Exit Sub
+		End If
+
+		IsAgAdd = True
+	Else
+		IsAgAdd = False
+	End If
+
+	If NewAg.Prop("Состоит в трудовых отношениях") = "" Then
+
+		If Not AddAgProps("Коды и признаки", "Состоит в трудовых отношениях", 3, 111) Then
+			updater.writelog "Невозможно добавить свойство сотруднику"
+			Updater.Fail = True
+		Else
+			SetAgPropValue Workarea.Agents
+		End If
+	End If
+
+	If IsAgAdd Then
+		
+		If Not Workarea.removeelem(acAgent, AgAdd.ID) Then
+			updater.writelog "Невозможно удалить временно созданного сотрудника"
+		End If
+
+	End If
+
+End Sub
+
+'----
+'
+'----
+Sub SetAgPropValue(Ags)
+	Dim i
+
+	For i = 1 To Ags.Count
+		With Ags.Item(i)
+			If .Type = 3 Then 
+				.Properties(CDate("13/01/2009")).Item("Состоит в трудовых отношениях").SetValue True
+			End If
+
+			If .HasChildren Then SetAgPropValue(.Children)
+		End With
+	Next
+
+End Sub
+
+'----
+'
+'----
+Function findAgent(Ags)
+	Dim i
+	Dim Ag
+
+	Set findAgent = Nothing
+
+	For i = 1 To Ags.Count
+		With Ags.Item(i)
+			If .Type = 3 Then
+				Set findAgent = Ags.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then 
+				Set Ag = findAgent(.Children)
+
+				If Not Ag Is Nothing Then 
+					Set findAgent = Ag
+					Exit Function
+				End If
+
+			End If
+		End With
+	Next
+	
+
+End Function
+'----
+'
+'----
+Sub updatemethods(updater)
+	updatemethod workarea.GetCodeID("2130п"), "2130п Безработица.mtd", updater
+	updatemethod WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", updater
+End Sub
+'----
+'
+'----
+Sub updatemethod(CodeID, CodeFile, updater)
+	Dim MtdFile
+
+	MtdFile = CreateLibObject("Redirect").GetFullPath(CodeFile, True)
+
+	If MtdFile = "" Then
+		updater.writelog "Невозможно обновить метод. Файл '" & CodeFile & "'не найден."
+		updater.fail = True
+	Else
+
+		If CodeID = 0 Then 
+			updater.writelog "Метод '" & CodeFile & "' не найден"
+			updater.fail = True
+		Else
+			Workarea.Code(CodeID).setScriptFromFile MtdFile
+			updater.writelog "Метод '" & CodeFile & "' обновлен."
+		End If
+	End If
+End Sub
+'----
+'
+'----

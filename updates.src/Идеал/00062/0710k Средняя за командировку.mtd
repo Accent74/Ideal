@@ -1,0 +1,30 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 12/02/2009 10:51:00
+'= Автор  : admin
+'= Код    : 0710 Команд.
+'= Метод  : оплата дней в команлировке
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage("Командировки: Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .tariff = 0 Then
+			Msg.Write .FormatMessage("Командировки: Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum = .tariff * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type <> 3 Then Exit Sub
+'		.long1 = .code.dbcode
+		SetDb(Tr)
+	End With
+End Sub

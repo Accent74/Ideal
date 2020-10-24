@@ -1,0 +1,140 @@
+'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : "Импакт"
+'==============================================
+'= Глобальный модуль
+'= Автоматически связывается со всеми методами
+'==============================================
+Sub Global_SetHours(ByRef Tr, b1, b2, dat)	
+	If Not b1 And Not b2 Then Exit Sub
+	With Tr
+		If .Agent.Type <> 3 Then Exit Sub
+ 		Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+		If tt Is Nothing Then Exit Sub
+		If b1 Then .Hours = tt.Hours(dat.firstday)
+		If b2 Then .GHours = tt.Hours(dat.firstday)
+	End With
+End Sub
+
+'==============================================
+Sub Global_SetDays(ByRef Tr, b1, b2, dat)
+        Dim TotalDays
+
+        If Not b1 And Not b2 Then Exit Sub
+
+        With Tr
+          If .Agent.Type <> 3 Then Exit Sub
+            Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+            If tt Is Nothing Then Exit Sub
+
+            TotalDays = tt.Days(dat.firstday)
+            If b1 Then .Days = TotalDays   
+
+            With .Agent
+	            TotalDays = CheckAgDays(.DateIn, .DateOut, Dat, tt, TotalDays, tr)
+            End With
+
+            If b2 Then .GDays = TotalDays
+        End With
+End Sub
+
+'==============================================
+Sub SetDb(ByRef Tr)
+	With Tr
+		If .Agent.Prop(PROP_DB) > 0 Then
+			.long1 = .Agent.Prop(PROP_DB)
+		ElseIf .orgid > 0 Then
+			With workarea.agent(.orgID)
+				If .params.Exists(PRM_DB) Then
+					.long1 = .params(PRM_DB).value2
+				End If
+			End With
+		Else
+			.long1 = workarea.agent(.AgID).parent.params(PRM_DB).value2
+		End If
+	End With
+End Sub
+
+'==============================================
+Function GetSumP(c) ' сумма положительных
+	Dim i
+	Dim cy
+	cy = 0
+	For i = 1 To c.Count
+		With c.Item(i)
+			If .Code.Type = 101 Then
+				cy = cy + .Sum
+			End If
+		End With
+	Next
+	GetSumP = cy
+End Function
+
+'==============================================
+' Результат - сумма по указанному коду для корреспондента в текущем рабочем периоде
+' Используется в Подоходном
+Function GetSumByCode(agID, codeID)
+	Dim rez
+	rez = 0
+	Dim rs
+	Set rs = App.WorkArea.DAODataBase.OpenRecordset( _
+		"SELECT JP_SUM FROM P_JOURNAL WHERE JP_DONE = 1 " & _
+			"And AG_ID = " & agID & _
+			" AND W_PERIOD = " & WorkArea.Period.ID & _
+			" AND MTC_ID = " & codeID )
+	If Not rs.eof	Then _
+		rez = rs.fields("JP_SUM")		
+	GetSumByCode = rez
+End Function
+
+'==============================================
+Function CheckAgDays(dIn, dOut, dat, tt, TotalDays, tr)
+        Dim CheckStart
+        Dim CheckEnd
+        Dim aDays
+        Dim i
+        Dim DayStart
+        Dim DayEnd
+        Dim FlagStart
+        Dim CountDays
+
+        CheckStart = (Dat.month = Month(dIn) And Dat.Year = Year(dIn))
+        CheckEnd = (Dat.month = Month(dOut) And Dat.Year = Year(dOut))
+
+        If CheckStart Or CheckEnd Then
+                DayStart = Day(dIn)
+                DayEnd = Day(dOut)
+
+                If (DayStart = DayEnd) And CheckStart And CheckEnd Then
+                        CheckAgDays = 1
+                        Exit Function
+                Else
+                        aDays = WorkArea.MonthCalendar(dat.Month, Dat.Year).WeekDaysArray(2)
+                        FlagStart = Not CheckStart
+                        CountDays = 0
+
+                        For i = 0 To UBound(aDays)
+                                If CheckStart Then FlagStart = (DayStart <= (i + 1))
+
+                                If FlagStart Then
+                                        If aDays(i) = 0 Then CountDays = CountDays + 1
+                                End If
+
+                                If CheckEnd Then
+                                        If DayEnd = (i + 1) Then Exit For
+                                End If
+                        Next
+
+                        CheckAgDays = CountDays
+                End If
+        Else
+                CheckAgDays = TotalDays
+        End If
+
+End Function
+
+'==============================================
+

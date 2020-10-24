@@ -1,0 +1,49 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 19/01/2007 14:39:34
+'= Автор  : admin
+'= Код    : 2110а Пенсионный фонд (аванс)
+'= Метод  : Пенсионный фонд 2 % (аванс) с 01.01.2007
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	CalcSum = 0
+
+	With Tr
+		.Tariff = .DependsW.SumIN
+
+		Select Case .String1 
+			Case "07"
+				.sum = - .LookUp.SumWD - .DependsW.SumWD
+			Case Else
+				If .Tariff >= MAX_FOUND_CY Then 
+		       BaseSum = MAX_FOUND_CY	
+				Else
+					BaseSum = .Tariff
+		     End If
+		
+				If BaseSum > LivingWage Then
+					.Sum2 = LivingWage * 0.005
+					.Sum3 = (BaseSum - LivingWage) * 0.02
+				Else
+					.Sum2 = BaseSum * 0.005
+					.Sum3 = 0
+				End If
+				CalcSum = .Sum2 + .Sum3
+				CalcSum = CalcSum - .LookUp.SumWD - .DependsW.SumWD
+		End Select
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+
+Sub Method_OnApply(Tr)
+	With Tr
+		.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+	End With
+End Sub
+

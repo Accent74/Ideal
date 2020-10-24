@@ -1,0 +1,76 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 05/09/2006 13:17:02
+'= Автор  : admin
+'= Код    : 2100а Подоходный налог (аванс)
+'= Метод  : Подоходный налог
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum
+	Dim OutDate
+	Dim CalcSum
+
+	With Tr
+		Select Case .String1
+			Case "07"
+				.Tariff = GetSumP(.DependsW)
+			Case Else
+				If .Sum3 = 0 Then
+					If Not .Long3 Then
+						' в месяце увольнения льгота не применяется
+						.Tariff = .DependsW.Sum
+					Else
+						.Tariff = .DependsW.Sum + GetPensSum(.DependsW, "0801")
+					End If
+				Else
+					.Tariff = .DependsW.Sum + GetPensSum(.DependsW, "2110а")
+				End If
+		End Select
+
+		If .Tariff > 0 Then
+			If .CPeriod.Year > 2006 Then
+				CalcSum = Round2(.Tariff * 0.15, 2)
+			Else
+				CalcSum = Round2(.Tariff * 0.13, 2)
+			End If
+			CalcSum = CalcSum - .LookUp.SumWD
+
+		Else
+			CalcSum = 0
+		End If
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+'==============================================
+Function GetPensSum(DepW, Code)
+	Dim tr
+	
+	Set Tr = DepW.FindItem("code", workarea.GetCodeID(Code))
+
+	If tr Is Nothing Then
+		GetPensSum = 0
+	Else
+		GetPensSum = Tr.Sum
+	End If
+	
+End Function
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		.long1 = str2long(.Agent.Prop(PROP_DISDOHOD_TAG, .wperiod.firstday))
+		.long2 = str2long(.Agent.Prop(PROP_DISQUANT_TAG, .wperiod.firstday))	
+		.long3 = IsAgDismiss(.Agent, .wperiod)
+		.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.long1)
+		.Sum3 = (.Agent.Prop(PROP_TRUD))
+	End With
+End Sub
+'==============================================
+
+
+

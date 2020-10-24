@@ -1,0 +1,135 @@
+'-----------
+'	Идеал 068
+'	модуль обновления 
+'-----------
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Option Explicit
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+
+	End Sub
+
+End Class
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	SetCodeProp updater
+	updatetables updater
+	addRep updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "068.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddRep(updater)
+	Dim AgID
+
+	If updater.fail Then Exit Sub
+
+	If USRTBL_ONE = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КОД (Реквизиты предприятия)"
+	Else
+		AgID = Workarea.Agents.Find(Workarea.UTable(USRTBL_ONE).GetValue(1,"Код по ЕДРПОУ",2), 2)
+		If AgID <> 0 Then
+			AddReport2 "Экспорт проводок в Акцент", "Идеал_Экспорт_в_Акцент.ash", 1, AgID, updater
+		Else
+			updater.writelog "Не найдена корреспондент Моя фирма"		
+		End If
+	End If
+End Sub
+
+'----
+'
+'----
+Sub SetCodeProp(updater)
+	Dim code
+
+	If updater.fail Then Exit Sub
+	Set Code = Workarea.Code(Workarea.GetCodeID("0116m"))
+
+	If Not Code Is Nothing Then
+		Code.MethodType = 2
+		Code.Save
+	Else
+		updater.writelog "Метод 0116m не найден"
+	End If
+	
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Июль 2012", updater
+	SetUTFieldValue UTableID, fMonth, "Август 2012", updater
+	SetUTFieldValue UTableID, fMonth, "Сентябрь 2012", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+
+'----
+'
+'----

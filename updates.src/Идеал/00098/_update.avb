@@ -1,0 +1,135 @@
+'-----------
+'	Идеал 098
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const CURR_YEAR = 2015
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	If Not updater.fail Then SetNewTax updater
+	If Not updater.fail Then CreateCode updater
+
+	CheckDEpends Array("0049"), Array("0110", "0115"), True, updater
+
+End Sub
+'----
+'
+'----
+Sub SetNewTax(updater)
+	Dim UTableID
+
+	If MsgBox("Обновлять ставку прожиточного минимума c сентября 2015 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Максимальный доход для НДФЛ", 13780.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 23426.00, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 1378.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 1710.00, updater
+
+	End If	
+
+End Sub
+'----
+'
+'----
+Sub CreateCode(updater)
+	Dim Fld, NewCodeRoot, NewCode
+	Dim RD, FileName, RootID
+
+	If Workarea.GetCodeID("0049") = 0 Then
+		Set Fld = GetFolder("Отчеты", Workarea.Codes)
+
+		If Not Fld Is Nothing Then
+			Set NewCodeRoot = Fld.Children.Create(103, "0049", "Справка для субсидии (ЗП)")
+			If Not NewCodeRoot Is Nothing Then
+				updater.writelog "Добавлен код 0049 'Справка для субсидии (ЗП)'"
+			Else
+				updater.writelog "Невозможно добавить код 0049 'Справка для субсидии (ЗП)'"
+				updater.fail = True
+			End If
+		Else
+			updater.writelog "Папка 'Отчеты' в списке кодов начислений/удержаний не найдена"
+			updater.fail = True
+		End If
+	End If
+
+'	If Workarea.GetCodeID("2405") = 0 Then
+'		RootID = Workarea.GetCodeID("2400")
+'
+'		If RootID = 0 Then
+'			updater.writelog "Невозможно добавить метод 2405 из-за отсутствия кода 2400"
+'			updater.fail = True
+'		Else
+'			Set Fld = Workarea.Code(RootID)
+'			Set NewCodeRoot = Fld.Children.Create(102, "2405", "НДФЛ (прочие начисления)")
+'			If Not NewCodeRoot Is Nothing Then
+'				updater.writelog "Добавлен код 2405 'НДФЛ (прочие начисления)'"
+'				NewCodeRoot.MethodType = 1
+'				NewCodeRoot.Percent = 20
+'				NewCodeRoot.Save
+'			Else
+'				updater.writelog "Невозможно добавить код 2405 'НДФЛ (прочие начисления)'"
+'				updater.fail = True
+'			End If
+'		End If
+'	End If
+
+	updater.refresh
+
+End Sub
+'----
+'
+'----

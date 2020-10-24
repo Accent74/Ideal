@@ -1,0 +1,194 @@
+Option Explicit
+
+'--------------------
+' Обновление 00004 --> 00005
+'--------------------
+
+'1-------------------
+'	GetIDByCode(codeName)
+'	Возвращает ID кода/метода
+'2-------------------
+'	RenameCode (ID, mtdName)
+'	Переименовывает код/метод с идентификатором ID на mtdName
+'3-------------------
+'	WorkArea.Code(ID).SetScript(newProg)
+'	Назначает методу с идентификатором ID новую программу newProg
+'4-------------------
+'	GetTextFromFile(fileName)
+'	Возвращает содержимое файла fileName
+'	Который имеет расширение *.mtd и будет описан в ARD
+'5-------------------
+'	WorkArea.GetSysCodeID("&ОПП")
+'	Возвращает идентификатор метода "Общие подпрограммы"
+'6-------------------
+'	InsertUT(a1,a2,a3,a4)
+'	Добавляет записи в пользовательские таблицы
+'7-------------------
+'	DoForm(frmName)
+'	Создаёт форму frmName и связывает её с файлом frmName.afm
+'8-------------------
+'	DoFolder fldName,GetFormID(frmName)
+'	Создаёт папку fldName и связывает её с формой frmName
+'9-------------------
+'	InsertFolderTree(GetFolderID(fldName))
+'	Создаёт папку fldName в корне документов/папок
+'10------------------
+
+Sub Main(Updater)
+	' Изменяем текст программы для метода "Общие подпрограммы"
+	WorkArea.Code(WorkArea.GetSysCodeID("&ОПП")).SetScript(GetTextFromFile("Общие подпрограммы.mtd"))
+	
+	' Изменяем текст программы для метода "0110ч Должностной оклад.mtd"
+	WorkArea.Code(GetIDByCode("0110ч")).SetScript(GetTextFromFile("0110ч Должностной оклад.mtd"))
+
+	' Изменяем текст программы для метода "2100п Подоходный.mtd"
+	WorkArea.Code(GetIDByCode("2100п")).SetScript(GetTextFromFile("2100п Подоходный.mtd"))
+
+	' Переименуем название кода с кодом 0530 в "Компенсация отпускных"
+	RenameCode GetIDByCode("0530"), "Компенсация отпускных"
+
+	' Изменяем текст программы для метода "0530m Компенсация отпускных.mtd"
+	WorkArea.Code(GetIDByCode("0530m")).SetScript(GetTextFromFile("0530m Компенсация отпускных.mtd"))
+
+	' Изменяем текст программы для метода "2130п Безработица.mtd"
+	WorkArea.Code(GetIDByCode("2130п")).SetScript(GetTextFromFile("2130п Безработица.mtd"))
+
+	' Изменяем текст программы для метода "0310р Дополнительные начисления.mtd"
+	WorkArea.Code(GetIDByCode("0310р")).SetScript(GetTextFromFile("0310р Дополнительные начисления.mtd"))
+
+	' Добавам в пользовательские таблицы записи о Пенсионном Фонде
+	InsertUT "2","3","17","Наименование Пенсионного Фонда"
+	InsertUT "2","3","18","ОКПО Пенсионного Фонда"
+	InsertUT "2","5","17","Пенсионный Фонд"
+	InsertUT "2","5","18","12345678"
+
+	' Подключаем персонификация
+	DoForm("Идеал_Персонификация") ' создаём форму и связь с файлом
+	DoFolder "Персонификация",GetFormID("Идеал_Персонификация") ' создаём папку и связь с формой
+	InsertFolderTree(GetFolderID("Персонификация")) ' помещаем папку в дерево документов
+
+End Sub
+
+'-------------------
+Function GetIDByCode(code)'long
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select MTD_ID from MTD_CODES where MTD_CODE='"&code&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для кода '"&code&"' найден более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("MTD_ID")
+		End If
+	End If
+	GetIDByCode = rez
+End Function
+
+'-------------------
+Function RenameCode(mtdID,nameMTD)'boolean
+	Dim rez	
+	Dim sql,db,QD
+	rez = False
+	If Not Len(CStr(nameMTD))> 0 Then Exit Function
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_NAME='"&nameMTD & _
+		"' WHERE MTD_ID="&mtdID
+	QD.Execute
+	rez = True
+	RenameCode = rez
+End Function
+
+'-------------------
+Function GetTextFromFile(fileName)'string
+	Dim rez,FS,TextFile,srcName	
+	rez = ""
+	srcName = CreateLibObject("redirect").GetFullPath(filename,True)
+	Set FS = CreateObject("Scripting.FileSystemObject")
+	Set TextFile = FS.OpenTextFile(srcName)
+	rez = TextFile.ReadAll
+	GetTextFromFile = rez
+End Function
+
+'-------------------
+Sub InsertUT(a1,a2,a3,a4)
+	Dim sql,db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "INSERT INTO UT_VALUES (UT_ID,UTF_ID,UTV_ROW,UTV_STRING) VALUES ("&a1&","&a2&","&a3&",'"&a4&"')"
+	QD.Execute
+End Sub
+
+'*---------------
+Function InsertFolderTree(ID)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into FLD_TREE (id) values ("&CStr(ID)&")"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function DoForm(frmName)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into forms (frm_guid, frm_type, frm_name, frm_file) values ("&CStr(NewGUID)&", 0, '"&frmName&"','"&frmName&".afm')"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function NewGuid
+	Dim rez,obj
+	Set obj = CreateLibObject("WinAPI")
+	rez = obj.NewGUID
+	NewGuid = rez
+End Function
+
+'---------------
+Function DoFolder(fldName,frmID)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into folders (fld_guid, frm_id, fld_name) values ("&CStr(NewGUID)&", "&CStr(frmID)&", '"&fldName&"')"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function GetFormID(frmName)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select FRM_ID from FORMS where FRM_NAME='"&frmName&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для формы '"&frmName&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("FRM_ID")
+		End If
+	End If
+	GetFormID = rez
+End Function
+
+'---------------
+Function GetFolderID(fldName)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select FLD_ID from FOLDERS where FLD_NAME='"&fldName&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для папки '"&fldName&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("FLD_ID")
+		End If
+	End If
+	GetFolderID = rez
+End Function

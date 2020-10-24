@@ -1,0 +1,45 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 13/05/2004 10:54:59
+'= Автор  : admin
+'= Код    : 0220 Ночные
+'= Метод  : Ночные (тариф)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		' в .Sum1 лежит процент ночных
+		.Sum = Round2( .tariff * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type <> 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_NIGHT,2)
+		SetDb(Tr)
+	End With
+End Sub

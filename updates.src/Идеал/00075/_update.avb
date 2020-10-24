@@ -1,0 +1,191 @@
+'-----------
+'	Идеал 075
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2013
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatetables updater
+	AddFotmethods updater
+	CreateCode updater
+
+	updatemethod Workarea.GetCodeID("0110ч"), "0110ч Должностной оклад (часы).mtd", updater
+	updatemethod Workarea.GetCodeID("0117-02"), "0117-02 Начислен аванс с 01.01.2011.mtd", updater
+	updatemethod Workarea.GetCodeID("0430w"), "0430w Больничные по беременности.mtd", updater
+	updatemethod Workarea.GetCodeID("2451"), "2451 ЕСВ (декретные).mtd", updater
+
+	CheckDEpends Array("2420", "0046", "2002"), Array("0430"), False, updater
+	CheckDEpends Array("2450", "0048", "2004", "2005"), Array("0430"), True, updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "075.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddFotmethods(updater)
+	Dim Fld, CodeFOT
+
+	Set Fld = GetFolder("Отчеты", workarea.codes)
+	If Not Fld Is Nothing Then 
+		CreateFOTCode2 "0048", "ЕСВ 2013 (декретные)", 9, Fld.Children, CodeFOT, updater
+	Else
+		updater.writelog "Папка 'Отчеты' в списке кодов начислений не найдена"
+		updater.fail = True
+	End If
+
+	Set Fld = GetFolder("ФОТ", workarea.codes)
+	If  Not Fld Is Nothing Then 
+		CreateFOTCode2 "2004", "ЕСВ декретные (33.2%)", 1, Fld.Children, CodeFOT, updater
+		CodeFOT.Percent = 33.2
+		CodeFOT.Threshold = 14115
+		CodeFOT.dbCode = 653
+		CodeFOT.Save
+
+		CreateFOTCode2 "2005", "ЕСВ декретные инвалиды (8.41%)", 2, Fld.Children, CodeFOT, updater
+		CodeFOT.Percent = 8.41
+		CodeFOT.Threshold = 14115
+		CodeFOT.dbCode = 653
+		CodeFOT.Save
+
+	Else
+		updater.writelog "Папка 'ФОТ' в списке кодов начислений не найдена"
+		updater.fail = True
+	End If
+End Sub
+'----
+'
+'----
+Sub CreateCode(updater)
+	Dim Fld, NewCodeRoot, NewCode
+	Dim RD, FileName
+
+	Set Fld = GetFolder("24 Обязательные 2011", Workarea.Codes)
+
+	If Not Fld Is Nothing Then
+		If Workarea.GetCodeID("2450") = 0 Then
+			Set NewCodeRoot = Fld.Children.Create(102, "2450", "ЕСВ (декретные)")
+			NewCodeRoot.DbCode = 661 
+			NewCodeRoot.DbCode = 657
+			NewCodeRoot.Save
+
+			If Not NewCodeRoot Is Nothing Then
+				updater.writelog "Добавлен код 2450 'ЕСВ (декретные)'"
+			Else
+				updater.writelog "Невозможно добавить код 2450 'ЕСВ (декретные)'"
+				updater.fail = True
+			End If
+		Else
+			Set NewCodeRoot = Workarea.Code("2450")
+		End If
+	Else
+		updater.writelog "Папка '24 Обязательные 2011' в списке кодов начислений не найдена"
+		updater.fail = True
+	End If
+
+	If Workarea.GetCodeID("2451") = 0 Then
+		Set NewCode = NewCodeRoot.Children.Create(200, "2451", "ЕСВ (декретные)")
+	
+		If Not NewCode Is Nothing Then
+			updater.writelog "Добавлен метод 2451 'ЕСВ (декретные)'"
+			NewCode.MethodType = 2
+			NewCode.Save
+		Else
+			updater.writelog "Невозможно добавить метод 2451 'ЕСВ (декретные)'"
+			updater.fail = True
+		End If
+	End If
+
+	updater.refresh
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Октябрь 2013", updater
+	SetUTFieldValue UTableID, fMonth, "Ноябрь 2013", updater
+	SetUTFieldValue UTableID, fMonth, "Декабрь 2013", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+'----
+'
+'----

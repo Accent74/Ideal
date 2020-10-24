@@ -1,0 +1,106 @@
+'-----------
+'	Идеал 035
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+
+	if not CopyFile("ФСС БР с 01.07 изменен.ash", "ФСС БР.ash") then
+		updater.writelog "Не удалось заменить файл ФСС БР.ash на ФСС БР с 01.07 изменен.ash"
+	else
+		updater.writelog "Файл ФСС БР.ash заменен на ФСС БР с 01.07 изменен.ash"
+	end if
+
+	
+	FrmID = AddProjItem(1, "Перерасчёт подоходного налога 2006", "Идеал_Перерасчёт2006.afm", updater)
+
+	If Not updater.fail Then
+		' добавить форму для обяз. удержаний + папка
+		FldID = GetFolderID("Прочее")
+
+		If FldID = 0 Then
+			updater.writelog "Не найдена папка Прочее. Форма для перерасчёт подоходного налога добавлена не будет."
+		Else
+			With WorkArea.Folder(FldID).Children
+				Set NewFld = .Create("Перерасчет 2006")
+				NewFld.FormID = FrmID
+				NewFld.Save
+			End With
+			updater.writelog "Добавлена папка для перерасчёта подоходного налога Прочее\Перерасчёт 2006."
+		End If
+	End If
+
+
+	UpdateCodeScript "3010п", "3010п Выплата зарплаты.mtd", Updater
+	UpdateCodeScript "0117-01", "0117-01 Начислен аванс.mtd", Updater
+	updater.refresh
+
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Апрель 2007"
+	SetUTFieldValue UTableID, fMonth, "Май 2007"
+	SetUTFieldValue UTableID, fMonth, "Июнь 2007"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "035.htm"
+
+End Sub
+
+'----
+'
+'----
+Function GetFolder(FldName, FldRoot)
+	Dim i
+	Dim fld
+
+	For i = 1 To FldRoot.Count
+		With FldRoot.Item(i)
+			If .Name = FldName Then
+				Set GetFolder = FldRoot.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then
+				Set fld = GetFolder(FldName, .Children)
+				If Not fld Is Nothing Then
+					Set GetFolder = Fld
+					Exit Function
+				End If
+			End If
+		End With
+	Next
+
+	Set GetFolder = Nothing
+
+End Function
+'----
+'
+'----

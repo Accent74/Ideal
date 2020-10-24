@@ -1,0 +1,999 @@
+Dim EnumLGID
+Dim EnumDID
+
+'----
+'
+'----
+Function GetFolder(FldName, FldRoot)
+	Dim i
+	Dim fld
+
+	For i = 1 To FldRoot.Count
+		With FldRoot.Item(i)
+			If .Name = FldName Then
+				Set GetFolder = FldRoot.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then
+				Set fld = GetFolder(FldName, .Children)
+				If Not fld Is Nothing Then
+					Set GetFolder = Fld
+					Exit Function
+				End If
+			End If
+		End With
+	Next
+
+	Set GetFolder = Nothing
+
+End Function
+'----
+'
+'----
+Sub AddFormAndFolder(RootFolderName, FolderName, FormName, updater)
+	Dim FrmID, FldID, NewFld, Fld
+	
+	FrmID = AddProjItem(1, FormName, FormName & ".afm", updater)
+
+	If Not updater.fail Then
+		Set NewFld = GetFolder(FolderName, WorkArea.Folders)
+
+		If NewFld Is Nothing Then
+			NewFld = GetFolder(RootFolderName, WorkArea.Folders)			
+
+			If NewFld Is Nothing Then
+				updater.writelog "Не найдена папка " & RootFolderName & ". Форма " & FormName & " добавлена не будет."
+				Exit Sub
+			Else
+				Set NewFld = NewFld.Children.Create(FolderName)
+				updater.writelog "Добавлена папка " & FolderName
+			End If
+		End If
+
+		NewFld.FormID = FrmID
+		NewFld.Save
+
+	End If
+End Sub
+'---
+'
+'---
+Function CopyFile(OldName, NewName)
+	Dim FSO
+	Dim RD
+	Dim OldFileFullName, NewFileFullName
+
+	Set RD = CreateLibObject("Redirect")
+	Set FSO = CreateLibObject("System")
+	OldFileFullName = RD.GetFullPath(OldName)
+	NewFileFullName = RD.GetFullPath(NewName)
+
+	If OldFileFullName <> "" Then
+		If Not FSO.CopyFile(OldFileFullName, OldFileFullName & ".old", True) Then
+			CopyFile = False
+			Exit Function
+		End If
+	End If
+
+	If NewFileFullName <> "" Then
+		If Not FSO.CopyFile(NewFileFullName, OldFileFullName, True) Then
+			CopyFile = False
+			Exit Function
+		End If 
+	End If
+
+	CopyFile = True
+
+End Function
+'---
+'
+'---
+Function GetUTFieldIDByName2(UTableID, UFieldName, updater)
+	Dim Rs 
+
+	Set Rs = GetRS("select UTF_ID From UT_Fields where UT_ID=" & CStr(UTableID) & " And UTF_NAME = '" & UFieldName & "'")
+
+	If Rs.eof Then
+		updater.writelog "В таблице ID " & CStr(UTableID) & " не обнаружено поле с именем " & UFieldName
+		updater.fail = True
+		GetUTFieldIDByName2 = 0
+	Else
+		GetUTFieldIDByName2 = rs.fields(0).Value
+	End If
+End Function
+'---
+'
+'---
+Function CountUTValues(UTableID, UTFieldID)
+	Dim Rs
+
+	Set Rs = GetRS("Select count(*) from UT_VALUES where UT_ID=" & CStr(UTableID) & " and UTF_ID=" & CStr(UTFieldID))
+	CountUTValues = Rs.Fields(0).Value
+	
+End Function
+'---
+'
+'---
+
+Sub SetUTFieldValue(UTableID, UTFieldID, UTFieldValue)
+	Dim Rs
+
+	Set Rs = GetRS("Select * from UT_VALUES")
+	Rs.AddNew
+
+	Rs.Fields("UT_ID").Value = UTableID
+	Rs.Fields("UTF_ID").Value = UTFieldID
+	Rs.Fields("UTV_ROW").Value = CountUTValues(UTableID, UTFieldID)
+
+	Select Case VarType(UTFieldValue)
+		Case vbLong
+			Rs.Fields("UTV_LONG").Value = UTFieldValue
+		Case vbString
+			Rs.Fields("UTV_STRING").Value = UTFieldValue
+		Case vbDouble
+			Rs.Fields("UTV_DOUBLE").Value = UTFieldValue
+		Case vbDate
+			Rs.Fields("UTV_DATE").Value = UTFieldValue
+		Case vbCurrency
+			Rs.Fields("UTV_CY").Value = UTFieldValue
+		Case Else
+			Exit Sub
+	End Select
+
+	Rs.Update
+	Rs.Close
+
+End Sub
+'----
+'
+'----
+Sub RenameCode(MtdCode, MtdName, updater)
+	Dim CodeID
+
+	CodeID = Workarea.GetCodeID(MtdCode)
+	
+	If CodeID = 0 Then
+		updater.writelog "Не обнаружен код начисления/удержания для переименования " & MtdCode
+		updater.fail = True
+	Else
+		With Workarea.Code(CodeID)
+			.Name = MtdName
+			.Save
+		End With
+	End If
+End Sub
+'----
+'
+'----
+Sub AddCodes(CodeRootName, aCodes, CodeType, MethodType, updater)
+	Dim NewCode
+	Dim Code
+	Dim CodeRoot
+	Dim CodeRootID
+
+	CodeRootID = Workarea.GetCodeID(CodeRootName)
+
+	If CodeRootID = 0 Then 
+		updater.writelog "Не найден код " & CodeRootName
+		updater.fail = True
+	Else
+		Set CodeRoot = Workarea.Code(CodeRootID).Children
+	
+		For i = 0 To UBound(aCodes)
+			Code = Trim(Token(aCodes(i), 1, " "))
+			If WorkArea.GetCodeID(Code) = 0 Then
+				Set NewCode = CodeRoot.Create(CodeType, Code, Trim(Mid(aCodes(i), Len(Code))))
+				If MethodType <> 0 Then
+					NewCode.MethodType = MethodType
+					NewCode.Save
+					updater.writelog "Добавлен метод " & NewCode.Code & " " & NewCode.Name
+				End If
+			End If
+		Next
+	End If
+
+End Sub
+
+'-------
+'
+'-------
+Function FindFolder(FldName, FldRoot, Kind)
+	Dim FldID
+	Dim Fld
+	Dim i
+
+	With FldRoot
+		For i = 1 To .Count
+			With .Item(i)
+				If .Type = 0 Then
+					If .Name = FldName Then
+						Set FindFolder = FldRoot.Item(i).Children
+						Exit Function
+					End If
+				End If
+			End With
+		Next
+
+		If Kind Then
+			Set Fld = FldRoot.Create(FldName)
+		Else
+			Set Fld = FldRoot.Create(0, FldName)
+		End If
+
+
+		Set FindFolder = Fld.Children
+
+	End With
+End Function
+'-------
+'
+'-------
+
+Function GetIDUTParam(UTSysCode, UTParamName)
+	Dim Cn
+	Dim Cmd
+	Dim Rs
+	Dim SQLtext
+
+	SQLtext = "Select UT_VALUES.UTV_ID " & _
+					"FROM USR_TABLES INNER Join (UT_FIELDS INNER Join UT_VALUES On UT_FIELDS.UTF_ID = UT_VALUES.UTF_ID) On (USR_TABLES.UT_ID = UT_VALUES.UT_ID) And (USR_TABLES.UT_ID = UT_FIELDS.UT_ID) " & _
+					"WHERE (((UT_FIELDS.UTF_ORDER)=0) And ((UT_VALUES.UTV_STRING)=[UTFName]) And ((USR_TABLES.UT_CODE)=[UTSysCode]))"
+
+	If App.AppType = "DAO" Then
+		SQLtext = Replace(SQLtext, "[UTFName]", Chr(34) & UTParamName & Chr(34))
+		SQLtext = Replace(SQLtext, "[UTSysCode]", Chr(34) & UTSysCode & Chr(34))
+		Set Rs = Workarea.DAODatabase.OpenRecordSet(SQLtext)
+	Else
+		SQLtext = Replace(SQLtext, "[UTFName]", "'" & UTParamName & "'")
+		SQLtext = Replace(SQLtext, "[UTSysCode]", "'" & UTSysCode & "'")
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 2 'курсор на нашей стороне
+		Set Cmd = CreateObject("ADODB.Command")
+		Set Cmd.ActiveConnection = Cn 
+		Cmd.CommandText = SQLtext
+		Set rs = 	Cmd.Execute	' выполняем команду 
+	End If
+
+	If Not rs.eof Then
+		GetIDUTParam = Rs.Fields(0).Value
+	Else
+		GetIDUTParam = 0
+	End If
+
+End Function
+
+'---
+'
+'---
+Function GetCountParams(UTID, UTFID)
+	Dim Rs
+	Set Rs = GetRS("Select count(*) from UT_VALUES Where UT_ID=" & CStr(UTID) & " and UTF_ID=" & CStr(UTFID))
+	GetCountParams = Rs.Fields(0).Value
+End Function
+'---
+'
+'---
+Sub AddUTFiled(UTSysCode, UTFieldName)
+	Dim UTID
+	Dim UTFID
+	Dim Rs
+	Dim CountParams
+
+	If GetIDUTParam(UTSysCode, UTFieldName) <> 0 Then Exit Sub
+
+	UTID = WorkArea.GetSysUTableID(UTSysCode)
+	UTFID = GetUTFieldPrm(UTID)
+	CountParams = GetCountParams(UTID, UTFID)
+
+	Set Rs = GetRS("Select * from UT_VALUES")
+	Rs.AddNew
+	Rs.Fields("UT_ID").Value = UTID
+	Rs.Fields("UTF_ID").Value = UTFID
+	Rs.Fields("UTV_ROW").Value = CountParams
+	Rs.Fields("UTV_STRING").Value = UTFieldName
+	Rs.Update
+	Rs.Close
+
+End Sub
+
+'----
+'
+'----
+Function GetUTFieldPrm(UTID)
+	Dim Cn
+	Dim Cmd
+	Dim Rs
+	Dim SQLtext
+
+	SQLtext = "Select UTF_ID from UT_FIELDS Where UTF_ORDER=0 and UT_ID=" & CStr(UTID)
+
+	Set Rs = GetRS(SQLtext)
+
+	If Not rs.eof Then
+		GetUTFieldPrm = Rs.Fields(0).Value
+	Else
+		GetUTFieldPrm = 0
+	End If
+
+End Function
+
+'----
+'
+'----
+
+Sub CheckWorker(AgRoot)
+	Dim i, j
+
+	For i = 1 To AgRoot.Count
+		With AgRoot.Item(i)
+			If .Type = 3 Then
+				With .Properties
+					For j = 1 To .Count
+						With .Item(j)
+							Select Case .Name
+								Case "Признак дохода" 
+									If .Value2 = 0 Then .SetValue EnumDID
+								Case "Признак льготы"
+									If .Value2 = 0 Then .SetValue EnumLGID
+								Case "ИНН"
+									If .Value2 = "" Then .SetValue String(10, "Х")
+							End Select
+
+						End With
+					Next
+				End With
+				If .Modified Then .Save
+			End If
+
+			If .HasChildren Then CheckWorker .Children
+
+		End With
+	Next
+End Sub
+
+
+
+'-------------------
+'
+'-------------------
+Sub AddReport(RepName, RepFile)
+	Dim Rs
+
+	Set Rs = GetRS("Select * From reports")
+
+	Rs.AddNew
+	rs.Fields("Rep_x").Value = 8
+	Rs.Fields("Rep_x_id").Value = 0
+	Rs.Fields("Rep_Name").Value = RepName
+	Rs.Fields("Rep_Type").Value = 12
+	Rs.Fields("Rep_SubType").Value = 0
+	Rs.Fields("Rep_Ps1").Value = RepFile
+	Rs.Fields("App_Type").Value = 80
+	Rs.Update
+	Rs.Close
+End Sub
+
+'-------------------
+'
+'-------------------
+Sub ShowWhatsNew(filename, firstpage)
+	Dim WinAPI
+
+	Set WinAPI = CreateLibObject("WinAPI")
+	WinAPI.htmlhelp filename, 0, firstpage
+End Sub
+
+
+'-------------------
+'
+'-------------------
+Sub CheckDEpends(aCodes, aDeps)
+	Dim i
+
+	With WorkArea
+		For i = 0 To UBound(aCodes)
+			CheckDependsCode .Code(.GetCodeID(aCodes(i))), aDeps
+		Next
+	End With
+
+End Sub
+
+'-------------------
+'
+'-------------------
+Sub CheckDependsCode(Code, aDeps)
+	Dim i, j
+	Dim DepFound
+	Dim DepID
+
+	For i = 0 To UBound(aDeps)
+		With Code.Depends
+			DepFound = False
+
+			For j = 1 To .Count
+				DepFound = (.Item(j).Code = aDeps(i))
+				If DepFound Then Exit For
+			Next
+		End With
+
+		If Not DepFound Then 
+			DepID = WorkArea.GetCodeID(aDeps(i))
+			If DepID <> 0 Then Code.AddDependency DepID
+		End If
+	Next
+End Sub
+
+'-------------------
+'
+'-------------------
+Function GetAgPropCatID(CatName)
+	Dim Rs
+
+	Set Rs = GetRS("Select PCAT_ID From AG_PROP_CATEGORY Where PCAT_NAME='" & CatName & "'")
+
+	If rs.eof Then 
+		GetAgPropCatID = 0
+	Else
+		GetAgPropCatID = Rs(0).Value
+	End If
+End Function
+
+'-------------------
+'
+'-------------------
+Function CalcAgPropItems(CatID)
+	Dim Rs, Cn, Cmd
+
+	Set Rs = GetRS("Select Max(PROP_NO) From AG_PROP_NAMES Where PCAT_ID=" & CStr(CatID))
+
+	If rs.eof Then 
+		CalcAgPropItems = 1
+	Else
+		CalcAgPropItems = Rs(0).Value + 1
+	End If
+
+End Function
+
+
+'-------------------
+'
+'-------------------
+
+Function AddAgProps(pCatName, pName, AgType, pType)
+	Dim pCatID
+	Dim pNo
+	Dim RS
+
+
+	AddAgProps = False
+	pCatID = GetAgPropCatID(pCatName)
+
+	If pCatID = 0 Then Exit Function
+
+	pNo = CalcAgPropItems(pCatID)
+
+
+	Set RS = GetRS("Select * From AG_PROP_NAMES")
+
+	Rs.AddNew
+	Rs("PCAT_ID") = pCatID
+	Rs("PROP_NO") = pNo
+	Rs("PROP_NAME") = pName
+	Rs("NODE_TYPE") = AgType
+	Rs("PROP_TYPE") = pType
+	Rs.Update
+
+	AddAgProps = True
+End Function
+
+'-------------------
+'
+'-------------------
+Function GetFolderID(FldName)
+	Dim FldFinderID
+
+	FldFinderID = Workarea.Folders.Find(FldName, 0, 2)
+
+	If FldFinderID = 0 Then
+		GetFolderID = 0
+	Else
+		GetFolderID = FldFinderID
+	End If
+
+End Function
+
+'-------------------
+
+Sub AddFolder(FldParentName, FldName, FormID, SysCode)
+	Dim FldParent
+	Dim FldParentID
+	Dim FldNew
+
+	FldParentID = GetFolderID(FldParentName)
+
+	If FldParentID = 0 Then
+		Set FldParent = WorkArea.Folders
+	Else
+		Set FldParent = WorkArea.Folder(FldParentID).Children
+	End If
+
+	Set FldNew = FldParent.Create(FldName)
+	FldNew.FormID = FormID
+	FldNew.Save
+
+End Sub
+
+'-------------------
+
+Function AddProjItem(pType, pName, pFileName, updater)
+	Dim NewItem
+
+		With workarea.ProjectItems(pType)
+			Set NewItem = .findfile(pFileName)
+
+			If NewItem Is Nothing Then
+
+				Set NewItem = .Create(pName, pFileName)
+				If NewItem Is Nothing Then
+					updater.writelog "Ошибка добавления элемента проекта " & pName & " в файле " & pFileName
+					updater.fail = True
+				End If
+			End If
+
+			AddProjItem = NewItem.ID
+		End With
+End Function
+
+'-------------------
+Function GetTextFromFile(fileName)'string
+	Dim rez,FS,TextFile,srcName	
+	rez = ""
+	srcName = CreateLibObject("redirect").GetFullPath(filename,True)
+	Set FS = CreateObject("Scripting.FileSystemObject")
+	Set TextFile = FS.OpenTextFile(srcName)
+	rez = TextFile.ReadAll
+	GetTextFromFile = rez
+End Function
+
+'-------------------
+Sub InsertUT(a1,a2,a3,a4)
+	Dim sql,db,QD,rs
+	sql = "Select UTV_STRING from UT_VALUES where UTV_STRING='"&a4&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO UT_VALUES (UT_ID,UTF_ID,UTV_ROW,UTV_STRING) VALUES ("&a1&","&a2&","&a3&",'"&a4&"')"
+		QD.Execute
+	End If
+End Sub
+
+'---------------
+Function InsertFolderTree(ID, p0)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into FLD_TREE (id,p0) values ("&CStr(ID)&","&CStr(p0)&")"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function NewGuid
+	Dim rez,obj
+	Set obj = CreateLibObject("WinAPI")
+	rez = obj.NewGUID
+	NewGuid = rez
+End Function
+
+'---------------
+Function DoFolder(fldName,frmID)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into folders (fld_guid, frm_id, fld_name) values ("&CStr(NewGUID)&", "&CStr(frmID)&", '"&fldName&"')"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function GetFormID(frmName)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select FRM_ID from FORMS where FRM_NAME='"&frmName&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для формы '"&frmName&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("FRM_ID")
+		End If
+	End If
+	GetFormID = rez
+End Function
+
+'--------------
+Sub DoSql(sqlName, sqlText)
+	Dim db, qd, qdItem, flag
+	Set db = WorkArea.DAODataBase
+	flag = True
+	For Each qdItem In db.QueryDefs
+		If qdItem.Name = sqlName Then flag = False
+	Next
+	If flag Then _
+		db.CreateQueryDef sqlName, sqlText
+End Sub
+
+'*--------------
+Sub MtdParent(mtdID, parentID)
+	Dim rs,sql
+	sql = "Select * from MTD_TREE where ID="&parentID
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		Dim p0,p1,p2,p3,p4,p5,p6,p7
+		p0 = ParentID
+		p1 = rs.fields("P0")
+		p2 = rs.fields("P1")
+		p3 = rs.fields("P2")
+		p4 = rs.fields("P3")
+		p5 = rs.fields("P4")
+		p6 = rs.fields("P5")
+		p7 = rs.fields("P6")
+		Dim db,QD
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "UPDATE MTD_TREE SET P0="&p0&", P1="&p1&", P2="&p2&", " &_
+			"P3="&p3&", P4="&p3&", P5="&p3&", P6="&p3&", P7="&p3&" WHERE ID="&mtdID
+		QD.Execute
+	End If
+End Sub
+
+'--------------
+Function GetIDByName(name)'long
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select MTD_ID from MTD_CODES where MTD_NAME='"&name&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для кода с названием '"&name&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("MTD_ID")
+		End If
+	End If
+	GetIDByName = rez
+End Function
+
+'--------------
+Sub SetFotMax(max)
+	Dim db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_THRESHOLD="&max&" WHERE MTD_TYPE=103"
+	QD.Execute
+End Sub
+
+'-------------- 
+Sub DefinitionInFile
+	Dim db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_FILE='definition.avb' WHERE MTD_NAME='Определения'"
+	QD.Execute
+End Sub
+
+'-------------------
+Sub AddAgProp(a1,a2,a3,a4,a5)
+	Dim sql,db,QD,rs
+	sql = "Select PROP_NAME from AG_PROP_NAMES where PROP_NAME='"&a2&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO AG_PROP_NAMES (PROP_NO,PROP_NAME,PROP_TYPE,NODE_TYPE,PCAT_ID) VALUES ("&a1&",'"&a2&"',"&a3&","&a4&","&a5&")"
+		QD.Execute
+	End If
+End Sub
+
+'-------------------
+Sub DeleteSql(sqlName)
+	Dim db, qd, qdItem, flag
+	Set db = WorkArea.DAODataBase
+	flag = False
+	For Each qdItem In db.QueryDefs
+		If qdItem.Name = sqlName Then flag = True
+	Next
+	If flag Then _
+		db.QueryDefs.Delete sqlName
+End Sub
+
+'-------------------
+Sub CreateWorkArea(a1,a2)
+	Dim sql,db,QD,rs
+	sql = "Select FRM_NAME from FORMS where FRM_NAME='"&a1&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO FORMS (FRM_GUID,FRM_TYPE,FRM_NAME,FRM_FILE) VALUES "&_
+			"("&CStr(NewGuid)&",100,'"&a1&"','"&a2&"')"
+		QD.Execute
+	End If
+End Sub
+
+
+'-------------------
+Sub AddRep(fileN,repCap,typeR,AgID)
+	Dim sql,db,QD,rs
+	sql = "Select REP_PS1 from REPORTS where REP_PS1='"&fileN&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO REPORTS " &_
+			"(REP_PS1,REP_NAME,REP_GUID,REP_X,REP_X_ID,REP_TYPE,REP_SUBTYPE,APP_TYPE) VALUES " &_
+			"('"&fileN&"','"&repCap&"',"&NewGuid&","&typeR&","&AgID&",12,0,80)"
+		QD.Execute
+	End If
+End Sub
+
+'--------------
+Sub SetMtdMode(mtdID, mtdMode)
+	Dim db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_MODE="&mtdMode&" WHERE MTD_ID="&mtdID
+	QD.Execute
+End Sub
+
+
+'---
+'
+'---
+Function GetRs(SQLString)
+	Dim DB, Cmd, Cn, Rs
+
+	If App.AppType = "DAO" Then
+		Set Db = WorkArea.DAODataBase
+		Set GetRS = db.openrecordset(SQLString)
+	Else
+
+		SQLString = Replace(SQLString, Chr(34), "'")
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+		Set GetRs = Rs	' выполняем команду 
+	End If
+End Function
+'---
+'
+'---
+Function FindUTableFileld(UTSysCode, UTFName)
+	Dim UT
+	Dim i
+	Dim UTF
+
+	Set UT = WorkArea.Utable(WorkArea.GetSysUTableID(UTSysCode))
+	Set UTF = UT.Fields
+	FindUTableFileld = False
+
+	For i = 1 To UTF.Count
+		With UTF.Item(i)
+			If .Name = UTFName Then
+				FindUTableFileld = True
+				Exit Function
+			End If
+		End With
+	Next
+End Function
+'---
+'
+'---
+Sub UpdateUTFieldValue(UTableID, FieldName, FieldValue, updater)
+	Dim UTFieldRow, UTFieldID
+	Dim Rs
+
+	GetUTFieldIDByName UTableID, FieldName, UTFieldRow, UTFieldID, updater
+
+	Set Rs = GetRs("SELECT UT_VALUES.UTV_CY FROM UT_VALUES WHERE (((UT_VALUES.UT_ID)=" & CStr(UTableID) & _
+							") And ((UT_VALUES.UTV_ROW)=" & CStr(UTFieldRow) & _
+							") And ((UT_VALUES.UTF_ID)=" & CStr(UTFieldID) & "));")
+	If rs.eof Then
+		updater.writelog "Невозможно обновить поле " & FieldName
+		updater.fail = True
+	Else
+		If App.AppType = "DAO" Then Rs.Edit
+		Rs.Fields(0) = FieldValue
+		Rs.Update
+	End If
+
+	Rs.Close
+
+End Sub
+'---
+'
+'---
+Sub GetUTFieldIDByName(UTableID, FieldName, UTFieldRow, UTFieldID, updater)
+	Dim Rs
+
+	UTFieldRow = 0
+	UTFieldID = 0
+
+	Set Rs = GetRS("SELECT UT_VALUES.UTV_ROW FROM UT_VALUES WHERE (((UT_VALUES.UT_ID)=" & _
+					CStr(UTableID) & _
+					") And ((UT_VALUES.UTV_STRING)=" & Chr(34) & _
+					FieldName & _
+					Chr(34) & "));")
+	
+	If Not Rs.eof Then
+		UTFieldRow = Rs.Fields(0).Value
+		Set Rs = GetRs("Select UT_VALUES.UTF_ID FROM UT_VALUES WHERE (((UT_VALUES.UT_ID)=" & _
+						CStr(UTableID) & _
+						") And ((UT_VALUES.UTV_ROW)=" & _
+						CStr(UTFieldRow) & _
+						")) ORDER BY UT_VALUES.UTF_ID DESC;")
+		If Not rs.eof Then 
+			UTFieldID = Rs.Fields(0).Value
+		Else
+			updater.writelog "Не найдено значение " & FieldName & " для обновления."
+			updater.fail = True
+		End If
+	Else
+		updater.writelog "Не найдено поле " & FieldName & " для обновления."
+		updater.fail = True
+	End If
+
+End Sub
+'-------------------
+'
+'-------------------
+Sub UpdateCodeScript(Code, ScriptFileName, Updater)
+	Dim CodeID
+	
+	If VarType(Code) = vbString Then
+		CodeID = WorkArea.GetCodeID(Code)
+	Else
+		CodeID = Code
+	End If
+
+	If CodeID = 0 Then
+		Updater.WriteLog "Не найден код начисления/удержания " & Code & " для обновления."
+		Updater.Fail = False
+	Else
+		WorkArea.Code(CodeID).SetScriptFromFile ScriptFileName
+	End If
+End Sub
+
+'---
+'
+'---
+Function AddUTField(UTableID, UTFieldName, UTFieldType)
+	Dim Rs
+
+	Set Rs = GetRS("Select * from UT_FIELDS")
+
+	Rs.AddNew
+	Rs.Fields("UT_ID").Value = UTableID
+	Rs.Fields("UTF_ORDER").Value = CountUTFields(UTableID)
+	Rs.Fields("UTF_NAME").Value = UTFieldName
+	Rs.Fields("UTF_TYPE").Value = UTFieldType
+	
+	Rs.Update
+	
+	rs.Close
+
+	Set Rs = GetRs("select max(UTF_ID) from UT_FIELDS where ut_id=" & CStr(UTableID) & " and UTF_NAME='" & UTFieldName & "'")
+
+	AddUTField = Rs.Fields(0).Value
+	Rs.Close
+	
+End Function
+'---
+'
+'---
+Function CountUTFields(UTableID)
+	Dim Rs
+
+	Set Rs = GetRS("Select count(*) from UT_FIELDS where UT_ID=" & CStr(UTableID))
+
+	CountUTFields = Rs.Fields(0).Value
+	
+End Function
+'---
+'
+'---
+Function FindFolderID(FolderName, FolderRoot)
+	Dim i
+	Dim fldID
+
+	For i  = 1 To FolderRoot.Count
+		With FolderRoot.Item(i)
+			If UCase(.Name) = UCase(FolderName) Then
+				FindFolderID = .ID
+				Exit Function
+			Else
+				If .HasChildren Then
+					fldID = FindFolderID(FolderName, .Children)
+
+					If fldID <> 0 Then
+						FindFolderID = fldID
+						Exit Function
+					End If
+
+				End If
+			End If
+		End With
+	Next
+
+End Function
+
+'1-------------------
+'	GetIDByCode(codeName)
+'	Возвращает ID кода/метода
+'2-------------------
+'	RenameCode (ID, mtdName)
+'	Переименовывает код/метод с идентификатором ID на mtdName
+'3-------------------
+'	WorkArea.Code(ID).SetScript(newProg)
+'	Назначает методу с идентификатором ID новую программу newProg
+'4-------------------
+'	GetTextFromFile(fileName)
+'	Возвращает содержимое файла fileName
+'	Который имеет расширение *.mtd и будет описан в ARD
+'5-------------------
+'	WorkArea.GetSysCodeID("&ОПП")
+'	Возвращает идентификатор метода "Общие подпрограммы"
+'6-------------------
+'	InsertUT(a1,a2,a3,a4)
+'	Добавляет записи в пользовательские таблицы
+'8-------------------
+'	DoFolder fldName,GetFormID(frmName)
+'	Создаёт папку fldName и связывает её с формой frmName
+'9-------------------
+'	Function InsertFolderTree(GetFolderID(fldName), p0)
+'	Создаёт папку fldName в корне документов/папок
+'10------------------
+'	SetFotMax(max)
+'	Устанавливает новый предел для ФОТ
+'11------------------
+'	DefinitionInFile
+'	Одноразовая процедура изменения связи Определений на внешний файл
+'12------------------
+'	GetIDByName(name)
+'	Получить ID кода по Имени
+'13------------------
+'	MtdParent(mtdID, parentID)
+'	Переместить код mtdID внутрь кода parentID
+'14------------------
+'	DoSql(sqlName, sqlText)
+'	Создать вьюху sqlName и кодом sqlText
+'15------------------
+'	GetFormID(frmName)
+'	Получить ID формы по имени
+'16------------------
+'	AddAgProp(a1,a2,a3,a4)
+'	Добавить новое свойство сотрудника - Prop_No (a1), Prop_Name (a2), Prop_Type (a3), Node_Type (a4), PCat_ID (a5)
+'17------------------
+'	DeleteSql(sqlName)
+'	Удалить вьюху sqlName
+'18------------------
+'	Sub CreateWorkArea(a1,a2)
+'	Добавить в FORMS сведения о новом модуле, который представляет собой WorkArea программы
+'19------------------
+'	Sub AddRep(a1,a2) a1 - имя файла, a2 - имя отчёта
+'
+'20------------------
+'	AddProjItem(pType, pName, pFileName)
+'	добавить новый элемент проекта

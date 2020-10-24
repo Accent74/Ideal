@@ -1,0 +1,51 @@
+Option Explicit
+
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+
+Sub Workarea_OnLoad
+	Dim msgb
+'	Dim dlg
+'	Set dlg = App.CreateDialog("version.adg")
+'	If dlg Is Nothing Then Exit Sub
+'	dlg.DoModal
+	
+	Set msgb = msg
+
+	With msgb
+		.visible = True
+		.write "Акцент-заработная плата версия " & app.Version, vbInformation
+		.write "Типовое решение Идеал версия " & workarea.userparam("CONFIG_VERSION1"), vbInformation
+	End With
+End Sub
+
+Sub Workarea_AfterCreate(Kind, KindID)
+	Dim i
+	Dim EnumLGID
+	Dim EnumDID
+	Dim EnumLGChildID
+
+	If Kind = acAgent Then
+		With WorkArea.Agent(KindID)
+			If .Type = 3 Then
+				If .Prop("Признак дохода") = 0 Then
+
+					EnumLGID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+					EnumDID = workarea.enum(ENUM_DISDOHOD).ItemID(1)
+					EnumLGChildID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+
+					With .Properties
+						For i = 1 To .Count
+							With .Item(i)
+								If .Name = "Признак дохода" Then	.SetValue EnumDID
+								If .Name = "Признак льготы" Then	.SetValue EnumLGID
+								If .Name = "Признак льготы на детей" Then	.SetValue EnumLGChildID
+								If .Name = "ИНН" Then	.SetValue String(10, "Х")
+							End With
+						Next
+					End With
+				End If
+			End If
+		End With
+	End If
+End Sub

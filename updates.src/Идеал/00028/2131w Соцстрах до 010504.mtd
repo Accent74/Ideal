@@ -1,0 +1,35 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 18/05/2004 16:05:11
+'= Автор  : admin
+'= Код    : 2120 Соцстрах
+'= Метод  : Соцстрах до 010504
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dep
+	Dim cy
+	Dim lk
+
+	With Tr
+		Set dep = .DependsW
+		.Tariff = dep.Sum
+		Set lk = .LookUp
+
+		Select Case workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+			Case "07"
+				.Sum = - lk.SumWD
+			Case Else
+				cy = .Tariff
+				If .Tariff >= MAX_FOUND_CY Then 
+		       cy = MAX_FOUND_CY ' если > 2660
+		     End If
+		
+				If Not .Agent.Prop(PROP_TRUD) Then
+					.Sum = cy * 0.5 / 100.0 ' 0.5 %
+				End If
+		
+				.Sum = .Sum - lk.SumWD
+		End Select
+	End With
+End Sub
+

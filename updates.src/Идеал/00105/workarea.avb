@@ -1,0 +1,275 @@
+Option Explicit
+
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+'---
+'
+'---
+Sub Workarea_OnLoad
+	Dim msgb
+	Dim Ver, cVerBase, cVerBuild
+
+	Set Workarea.Map.Item("XMLHTTP") = CreateObject("Msxml2.XMLHTTP")
+	Ver = WorkArea.UserParam("CONFIG_VERSION1")
+
+	If IsNull(Ver) Then
+		Exit Sub
+	End If
+
+	cVerBuild = Right(CStr(Ver), 3)
+	cVerBase	= CStr(CInt(Ver / 1000))
+
+	With WorkArea.Window
+		.Caption = "Акцент-заработная плата " & token(App.Version, 1, ".") & "." & token(App.Version, 2, ".") & " : " & .Title & " - Идеал [ 7." & cVerBase & "." & cVerBuild & " ]"
+	End With
+	
+	Set msgb = msg
+
+	With msgb
+		.visible = True
+		.write "Акцент-заработная плата версия " & app.Version, vbInformation
+		If app.apptype = "DAO" Then .write "База данных " & workarea.daodatabase.name, vbInformation
+		.write "Типовое решение Идеал версия " & workarea.userparam("CONFIG_VERSION1"), vbInformation
+
+		If TestExtensions() Then 
+			.write "В пути доступа к файлам были внесены изменения." & _
+					  "Для дальнейшей нормальной работы программы необходимо ее перезапустить.", vbCritical
+			MsgBox "В пути доступа к файлам были внесены изменения." & vbCrLf & _
+					  "Для дальнейшей нормальной работы программы необходимо ее перезапустить.", vbInformation, "Внимание !"
+
+		End If
+
+		CheckBackup
+	End With
+
+	If CheckForUpdates() Then
+		App.RunModule "ST7_CheckUpdates.avb", "CheckUpdates"
+		App.RunModule "ST7_updatesload.avb", "main"
+	End If
+
+End Sub
+'---
+'
+'---
+Sub	CheckBackup
+	Dim DoBackup
+	Dim LastBackUP
+	Dim BackUpMode
+
+	If IsNull(Workarea.UserParam("BackUpMode")) Then 
+		Exit Sub
+	Else
+		BackUpMode = Workarea.UserParam("BackUpMode")
+	End If
+
+	If IsNull(Workarea.userparam("LastBackUp")) Then
+		DoBackup = True
+	Else
+		LastBackUP = Workarea.userparam("LastBackUp")
+
+		Select Case BackUpMode
+			Case 1
+				DoBackup = (formatdate2(CDate(LastBackUP), "yyyy/mm/dd") <> formatdate2(Now, "yyyy/mm/dd"))
+			Case 2
+				DoBackup = ((Now - LastBackUP) > 7)
+			Case 3
+				DoBackup = (Month(Now) <> Month(LastBackUP))
+		End Select
+
+	End If
+
+	If DoBackup Then App.RunModule "ST7_BackupDB.avb"
+
+End Sub
+'---
+'
+'---
+Function CheckForUpdates()
+	Dim EnID, Check, En
+
+	EnID = workarea.params("Проверять обновления").value2
+	Set En = Workarea.Enum("Логика")
+	
+	Check = False
+
+ 	If EnID <> 0 And Not En Is Nothing Then 
+		Check = UCase(En.ItemNameID(EnID)) = "ДА"
+	End If
+
+	If Check Then Check = IsUserInGroup("Admins")
+
+	CheckForUpdates = Check
+
+End Function
+'-------
+'
+'-------
+Function IsUserInGroup(ByRef GroupName)
+	Dim i, aGroups
+
+	aGroups = workarea.UserGroups
+
+	If UBound(aGroups) = -1 Then
+		IsUserInGroup = True
+		Exit Function
+	End If
+
+	GroupName = UCase(GroupName)
+
+	For i = 0 To UBound(aGroups)
+		If GroupName = UCase(aGroups(i)) Then
+			IsUserInGroup = True
+			Exit Function
+		End If
+	Next
+
+	IsUserInGroup = False
+
+End Function
+'---
+'
+'---
+Function TestExtensions()
+	Dim Rd, ArdFileName, Path2Mask, ArdFile, FSO, buffer, shell
+	Dim aPath, i, Mask, AddToARD, ArdFilePath, ArdFilePathNew, cmd
+
+	Mask = Array("*.bmp", "*.gif", "*.sql", "*.htm", "*.dbf", "*.xml", "*.tml", "*.ini", "*.emt", "*.backup", "*.xls", "*.css", "*.xsd")
+	Path2Mask = Array("help\images", "help\images", "scripts", "help", "dbf", "xml", "updates", "ini", "dbf", "data\Backup", "xml", "help", "xml")
+	Set RD = CreateLibObject("Redirect")
+	AddToARD = ""
+
+	For i = 0 To UBound(Mask)
+		aPath =	RD.GetPathArray(Mask(i))
+
+		If UBound(aPath) = -1 Then
+			AddToARD = AddToARD & Mask(i) & "=#data\..\" & Path2Mask(i) & vbCrLf
+		End If
+	Next
+
+	TestExtensions = AddToARD <> ""
+
+	If AddToARD <> "" Then
+		ArdFileName = ArdFName()
+		ArdFilePath = RD.AppPath & ArdFileName
+		ArdFilePathNew = RD.DBPath & ArdFileName
+
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set ArdFile = FSO.OpenTextFile(ArdFilePath, 1)
+		buffer = ArdFile.readAll
+		ArdFile.Close
+
+		buffer = buffer & vbCrLf & AddToARD
+
+		Set ArdFile = FSO.CreateTextFile(ArdFilePathNew, True)
+		ArdFile.Write buffer
+		ArdFile.Close
+
+		Set Shell = CreateObject("Shell.Application")
+		cmd = "/c copy " & Chr(34) & ArdFilePathNew & Chr(34) & " " & Chr(34) & ArdFilePath & Chr(34)
+		Shell.ShellExecute "cmd", cmd, RD.DBPath, "runas", 1
+	
+		Set Shell = Nothing
+		Set ArdFile = Nothing
+		Set FSO = Nothing
+		Set RD = Nothing
+	End If
+
+End Function
+'---
+'
+'---
+Sub Workarea_AfterCreate(Kind, KindID)
+	If Kind = acAgent Then
+		TestAgentProps KindID
+	End If
+End Sub
+'---
+'
+'---
+Sub Workarea_OnChanged(Kind, KindID)
+	If Kind = acAgent Then
+		TestAgentProps KindID	
+	End If
+End Sub
+'---
+'
+'---
+Sub TestAgentProps(KindID)
+	Dim i, AgName
+	Dim EnumLGID
+	Dim EnumDID
+	Dim EnumLGChildID
+
+	With WorkArea.Agent(KindID)
+		If .Type = 3 Then
+			AgName = .Name
+
+			With .Properties
+				.item("Фамилия").setvalue Token(AgName, 1, " ")
+				.item("Имя").setvalue Token(AgName, 2, " ")
+				.item("Отчество").setvalue Token(AgName, 3, " ")
+			End With
+
+			If .Prop("Признак дохода") = 0 Then
+				EnumLGID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+				EnumDID = workarea.enum(ENUM_DISDOHOD).ItemID(1)
+				EnumLGChildID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+
+				With .Properties
+					For i = 1 To .Count
+						With .Item(i)
+							If .Name = "Признак дохода" Then	.SetValue EnumDID
+							If .Name = "Признак льготы" Then	.SetValue EnumLGID
+							If .Name = "Признак льготы на детей" Then	.SetValue EnumLGChildID
+							If .Name = "ИНН" Then	.SetValue String(10, "Х")
+						End With
+					Next
+				End With
+			End If
+		End If
+	End With
+End Sub
+'-------
+' Function ArdFName - вернуть имя ard-файла для текущего приложения
+'-------
+Function ArdFName()
+	Dim ver
+	Select Case Left( App.Version, 3 )
+	Case "6.0"
+		ver = "6"
+	Case "7.0"
+		ver = "7"
+	Case "7.4"
+		ver = "74"
+	End Select
+	ArdFName = App.AppName & ver & Iif( App.AppType = "DAO", "", "s" ) & ".ard"
+End Function
+'---
+'
+'---
+Sub Workarea_OnPropValueChanged(Prop, ByRef Cancel)
+	Dim AgID
+
+	AgID = Prop.KindID
+	
+	If AgID <> 0 Then
+		With Workarea.Agent(AgID)
+			If .Type = 3 Then
+				Select Case Prop.Name 
+					Case "Фамилия"
+						.Name = Prop.Value2 & " " & .Prop("Имя") & " " & .Prop("Отчество")
+					Case "Имя"	
+						.Name = .Prop("Фамилия") & " " & Prop.Value2 & " " & .Prop("Отчество")
+					Case "Отчество"
+						.Name = .Prop("Фамилия") & " " & .Prop("Имя") & " " & Prop.Value2
+				End Select
+
+				.Save
+				workarea.window.refresh
+			End If
+		End With
+	End If
+End Sub
+'---
+'
+'---

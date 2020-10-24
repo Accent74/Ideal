@@ -1,0 +1,23 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 22/12/2005 21:01:44
+'= Автор  : admin
+'= Код    : 3020 Аванс
+'= Метод  : Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		If .Long1 Then 
+			.Tariff = .DependsW.Sum
+		Else
+			.Tariff = 0
+		End If
+
+		.Sum = .Tariff
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+End Sub

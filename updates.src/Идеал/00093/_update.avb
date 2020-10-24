@@ -1,0 +1,79 @@
+'-----------
+'	Идеал 093
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const CURR_YEAR = 2015
+
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	adddepends updater
+
+	If Not updater.fail Then updatemethod workarea.getcodeid("2411"), "2411 ЕСВ (базовый).mtd", updater
+	If Not updater.fail Then updatemethod workarea.getcodeid("2411а"), "2411а ЕСВ (базовый, аванс).mtd", updater
+
+	If Not updater.fail Then
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "093.htm"
+		End If
+	Else
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub adddepends(updater)
+	CheckDEpends Array("2400"), Array("2460", "2460а", "2450", "2450а"), True, updater
+End Sub
+'----
+'
+'----

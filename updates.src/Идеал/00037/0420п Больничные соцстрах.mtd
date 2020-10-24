@@ -1,0 +1,41 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 02/02/2004 10:38:45
+'= Автор  : admin
+'= Код    : 0420 Больничные соцстрах
+'= Метод  : Больничные соцстрах
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TotalSum
+
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной/среднечасовой тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		TotalSum = .sum2 / 100 * .sum1 * .days
+		If .Sum3 <> 0 Then TotalSum = TotalSum * .Sum3
+
+		.Sum = TotalSum
+'		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type <> 3 Then Exit Sub
+	End With
+End Sub

@@ -1,0 +1,82 @@
+'-----------
+'	Идеал 065
+'	модуль обновления 
+'-----------
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Option Explicit
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+
+	End Sub
+
+End Class
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatecode updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "065.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatecode(updater)
+	Dim Code, CodeID
+
+	CodeID = Workarea.GetCodeID("2002")
+
+	If CodeID = 0 Then
+		updater.writelog "Ошибка: не обнаружен код 2002"
+	Else
+		Set Code = Workarea.Code(CodeID)
+		Code.Mode = 1
+		Code.Save
+		updater.writelog "Сообщение: код 2002 установлен в режим 'Для НЕ инвалидов'"
+	End If
+
+End Sub
+'----
+'
+'----

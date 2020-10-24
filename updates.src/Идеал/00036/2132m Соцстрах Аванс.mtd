@@ -1,0 +1,24 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 20/12/2005 14:13:33
+'= Автор  : admin
+'= Код    : 2120 Соцстрах
+'= Метод  : Соцстрах Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+
+	With Tr
+		.Tariff = .DependsW.Sum
+		s = Round2(.Tariff * .Sum2 / 100, 2)
+		.Sum1 = s
+		.Sum = s
+	End With
+
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		.Sum2 = 1	' 1% 		Соцстрах 
+	End With
+End Sub

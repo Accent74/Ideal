@@ -1,0 +1,109 @@
+'-----------
+'	Идеал 061
+'	модуль обновления 
+'-----------
+
+'#include "_ideal_update_func.avb"
+Option Explicit
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim RD, Path
+
+	updatetables updater
+	UpdateMethods updater
+
+	Set RD = CreateLibObject("Redirect")
+
+	RenameFile "Идеал_справка_о_доходах.afm", "Идеал_справка_о_доходах.bak.afm", updater
+	RenameFile "Идеал_справка_о_доходах2011.afm", "Идеал_справка_о_доходах.afm", updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "061.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+
+
+End Sub
+
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Июль 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Август 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Сентябрь 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Октябрь 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Ноябрь 2011", updater
+	SetUTFieldValue UTableID, fMonth, "Декабрь 2011", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+'----
+'
+'----
+Sub UpdateMethods(updater)
+	updatemethod Workarea.GetCodeID("2410а"), "2410а НДФЛ (аванс).mtd", updater
+	updatemethod Workarea.GetCodeID("2402"), "2402 НДФЛ (шахтеры).mtd", updater
+	updatemethod Workarea.GetCodeID("2410"), "2410 НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("2402а"), "2402а НДФЛ (шахтеры).mtd", updater
+End Sub
+'----
+'
+'----
+Sub RenameFile(OldName, NewName, updater)
+	Dim Sys, RD, PathFile
+	Dim IsFail, NewNamePath, OldNamePath
+
+	If updater.fail Then Exit Sub
+
+	Set RD = CreateLibObject("Redirect")
+	Set Sys = CreateLibObject("System")	
+
+	OldNamePath = RD.GetFullPath(OldName)
+	PathFile = Left(OldNamePath, InStrRev(OldNamePath, "\"))
+	NewNamePath = PathFile & NewName
+
+	IsFail = Not Sys.CopyFile(OldNamePath, NewNamePath, True)
+
+	If Not IsFail Then
+		Sys.DeleteFile OldNamePath
+	Else
+		updater.writelog "Ошибка: невозможно скопировать файл " & OldName & " в файл " & NewName
+		updater.fail = True
+	End If
+End Sub
+'----
+'
+'----

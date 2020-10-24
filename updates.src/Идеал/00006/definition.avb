@@ -1,0 +1,64 @@
+'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/02/2005 15:20
+'= Автор  : Alib Ezbar
+'==============================================
+'= Глобальный внешний модуль
+'==============================================
+
+' Названия свойств
+'==============================================
+Const PROP_SALARY_TAG			= "Оклад"
+Const PROP_PERHOUR_TAG		= "Тариф за час"
+Const PROP_GRAPH_TAG			= "График"
+Const PROP_DISQUANT_TAG		= "Признак льготы"
+Const PROP_DISDOHOD_TAG		= "Признак дохода"
+Const PROP_DB						= "Счёт затрат"
+Const PROP_DISCHILD_TAG		= "Количество детей"
+Const PROP_ALI						= "Процент алиментов"
+Const PROP_PENS					= "Дата выхoда на пенсию"
+Const PROP_UVOLEN				= "Дата увольнения"
+Const PROP_DISAB					= "Инвалид"
+Const PROP_TRUD					= "Трудовой договор"
+' для ЗАМЕЩЕНИЯ
+Const PROP_HOURS_ZAM 			= "Часы замещения"
+Const PROP_AG_ZAM 				= "Кого замещаем"
+Const PROP_FZAM1_TAG			= "С"
+Const PROP_TZAM1_TAG			= "По"
+Const PROP_PZAM_TAG				= "% Оклада"
+Const PROP_OZAM_TAG				= "Приказ"
+
+' Названия параметров подразделений
+'==============================================
+Const PRM_DB						=	"Счёт затрат"
+
+' Перечисления
+'==============================================
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+
+' Пользовательские таблицы
+'==============================================
+Const USRTBL_INID				= 1 ' Таблица процентов доплат
+Const USRTBL_NIGHT				= "Ночные"
+Const USRTBL_EVENING			= "Вечерние"
+Const USRTBL_OVERTIME			= "Сверхурочные"
+Const USRTBL_HOLIDAY			= "Праздничные"
+Const PROP_TRADE					= "Трудовое соглашение"
+'----------------------------------------------
+Const USRTBL_LGT					= 3 ' Таблица ставок подоходного
+Const USRTBL_DPAY				= "Размер льготы"
+Const USRTBL_DLTM				= "Максимальный льготный доход"
+Const USRTBL_MINLIF				= "Прожиточный минимум"
+Const USRTBL_MAXCY				= "Максимальный доход"
+
+' Прочие
+'==============================================
+Const VALUE_NDS_PERCENT		= 20
+Const VALUE_PDN_PERCENT		= 13
+Const lvlTariff					= 50 ' Порог, когда оклад считается тарифом "<"
+Const MAX_LEVEL_SS				= 365 ' соцстрах, больше - 1%, меньше 0,5%
+Dim MAX_FOUND_CY
+MAX_FOUND_CY = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)

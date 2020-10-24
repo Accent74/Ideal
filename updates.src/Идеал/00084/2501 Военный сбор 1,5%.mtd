@@ -1,0 +1,26 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 18/08/2014 13:44:28
+'= Автор  : admin
+'= Код    : 2500 Военный сбор
+'= Метод  : Военный сбор 1,5%
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .dependsw.SumIN 
+		.Sum = Round2(.Tariff * 0.015, 2) - .dependsw.Sumwd 
+	End With
+End Sub
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		
+	End With
+End Sub
+
+'---
+'
+'---

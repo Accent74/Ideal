@@ -1,0 +1,154 @@
+'-----------
+'	Идеал 036
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	AddFormAndFolder "Больничные", "Больничные по беременности", "Идеал_Больничные_Пособие по беременности_Развёрнуто2", updater
+	AddFormAndFolder "Больничные", "Больничные по уходу за ребёнком", "Идеал_Больничные_Уход за ребенком_Развёрнуто2", updater
+	AddFormAndFolder "Больничные", "Больничные по травме", "Идеал_Больничные_Развернуто2ФНС", updater
+
+	UpdateCodeScript "2102m", "2102m Подоходный Аванс.mtd", Updater
+	UpdateCodeScript "2110а-1", "2110a-1 Пенсионный фонд 1% (аванс).mtd", Updater
+	UpdateCodeScript "2110а-2", "2110a-2 Пенсионный фонд 2% (аванс).mtd", Updater
+	UpdateCodeScript "2110a-4", "2110a-4 Пенсионный 2% + 0.5% (аванс) с 01.01.2007.mtd", Updater
+	UpdateCodeScript "2110j", "2110j Пенсионный (2% + 0.5%) с 01.01.2007.mtd", Updater
+	UpdateCodeScript "2110п", "2110п Пенсионный 2%.mtd", Updater
+	UpdateCodeScript "2111w", "2111w Пенсионный 1%.mtd", Updater
+	UpdateCodeScript "2114m", "2114m Пенсионный Аванс.mtd", Updater
+	UpdateCodeScript "2120а-1", "2120a-1 Соцстрах 1% (аванс).mtd", Updater
+	UpdateCodeScript "2120а-05", "2120a-05 Соцстрах 0.5% (аванс).mtd", Updater
+	UpdateCodeScript "2120п", "2120п Соцстрах 1%.mtd", Updater
+	UpdateCodeScript "2130w", "2130w Соцстрах 0,5%.mtd", Updater
+	UpdateCodeScript "2130ав", "2130ав Безработица (аванс).mtd", Updater
+	UpdateCodeScript "2130п", "2130п Безработица.mtd", Updater
+	UpdateCodeScript "2131w", "2131w Соцстрах до 010504.mtd", Updater
+	UpdateCodeScript "2132m", "2132m Соцстрах Аванс.mtd", Updater
+	UpdateCodeScript "2133m", "2133m Безработица Аванс.mtd", Updater
+	UpdateCodeScript "2140w", "2140w Проф. взнос.mtd", Updater
+	UpdateCodeScript "2142m", "2142m Проф. взнос Аванс.mtd", Updater
+	UpdateCodeScript "2220п", "2220п Алименты.mtd", Updater
+	UpdateCodeScript "0117-01", "0117-01 Начислен аванс.mtd", Updater
+
+	UpdateCodeScript WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", Updater
+	updater.refresh
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Июль 2007"
+	SetUTFieldValue UTableID, fMonth, "Август 2007"
+	SetUTFieldValue UTableID, fMonth, "Сентябрь 2007"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+	update_table_fields
+	SbbDenends updater
+
+	SetUpreports updater
+
+	updater.refresh
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "036.htm"
+
+End Sub
+
+'----
+'
+'----
+Sub SbbDenends(updater)
+	Dim i, objCode, objCodeID
+
+	objCodeID = WorkArea.GetCodeID("0801")
+
+	If objCodeID <> 0 Then
+		Set objCode = WorkArea.Code(objCodeID)
+		With objCode.Depends
+			For i = 1 To .Count
+				With .Item(i)
+					If .Code = "0520" Then 
+						objCode.RemoveDependency(WorkArea.GetCodeID("0520"))
+						updater.writelog "Код 0502 удален из зависимостей метода 0801"
+						Exit Sub
+					End If
+				End With
+			Next
+		End With
+	End If
+
+	updater.writelog "Код 0502 не обнаружен в зависимостях метода 0801"
+End Sub
+'----
+'
+'----
+Sub update_table_fields
+	Dim rs
+
+	Set rs = GetRs("Select UTV_STRING from  UT_VALUES where UTV_STRING=""Июнь  2004""")
+	If Not rs.eof Then
+		If App.AppType = "DAO" Then Rs.Edit
+		rs.fields(0).Value = "Июнь 2004"
+		rs.update
+	End If
+
+	Set rs = GetRs("Select UTV_STRING from  UT_VALUES where UTV_STRING=""Июль  2004""")
+	If Not rs.eof Then
+		If App.AppType = "DAO" Then Rs.Edit
+		rs.fields(0).Value = "Июль 2004"
+		rs.update
+	End If
+
+End Sub
+'----
+'
+'----
+Sub SetUpreports(updater)
+	Dim rs
+
+	Set Rs = GetRs("Select Rep_ps1 from reports where Rep_ps1='Розрахунок збору пенсiйного страхування (Додаток 23) с 01.07.ash'")
+
+	If Not rs.eof Then
+		If app.AppType = "DAO" Then Rs.Edit
+		Rs.Fields(0).Value = "Розрахунок збору пенсiйного страхування (Додаток 23).ash"
+		Rs.update
+		updater.writelog "Изменен файл отчета "
+	End If
+		
+	Set Rs = GetRs("Select Rep_ps1 from reports where Rep_ps1='ФСС БР с 01.07 изменен.ash'")
+
+	If Not rs.eof Then
+		If app.AppType = "DAO" Then Rs.Edit
+		Rs.Fields(0).Value = "ФСС БР.ash"
+		Rs.update
+	End If
+
+	rs.close
+
+End Sub
+'----
+'
+'----

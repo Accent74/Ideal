@@ -1,0 +1,56 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=Windows-1251"> 
+<link rel="stylesheet" type="text/css" href="job.css">
+<title>Задачи</title>
+<script>
+function on_load()
+{
+	var wa = window.external;
+	if (wa == null)
+		return;
+	wa.Application.Global.Hyperlink.Navigate("", "Main!job=0");
+	var jc = wa.Jobs;
+	for (var i=0; i<jc.Count; i++) {
+		var ji = jc.Item(i+1);
+		var tr = tmain.insertRow(-1);
+		var tc = tr.insertCell(-1);
+		tc.className = "TMI";
+		tc.innerHTML = '<a href="javascript:do_link(' + "'" +
+			ji.Code + "'" + ');">' + ji.Name + '</a><div class="DESCR">' + 
+			ji.Memo + '</div>';
+	}	
+}
+
+function do_link(tag)
+{
+	var wa = window.external;
+	if (wa == null)
+		return;
+	wa.Application.Global.Hyperlink.Navigate("", "Main!job='" + tag + "'");
+}
+</script>
+</head>
+<body onload="on_load()" >
+<table class="TB">
+  <tr height=1>
+	<td class="TTH">
+		Задачи
+	</td>
+  </tr>
+  <tr height=1>
+    <td class="TDSCR">
+		На этой странице перечислены типовые задачи, решаемые 
+		в процессе расчета заработной платы на предприятии. Выберите категорию задач в списке.
+	</td>
+  </tr>
+  <tr height=*>
+	<td class="TG">
+	<table class="TM" id="tmain">
+	<tr><td class="TMH">Задачи</td></tr>
+	</table>
+	</td>
+  </tr>
+</table>
+</body>
+</html>

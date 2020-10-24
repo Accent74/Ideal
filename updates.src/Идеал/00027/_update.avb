@@ -1,0 +1,26 @@
+'-----------
+'	Идеал 027
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+
+	With WorkArea
+		.Code(.GetCodeID("0410п")).SetScriptFromFile "0410п Больничные за счет предприятия.mtd"
+		.Code(.GetCodeID("0420п")).SetScriptFromFile "0420п Больничные соцстрах.mtd"
+		.Code(.GetCodeID("0110ч")).SetScriptFromFile "0110ч Должностной оклад (часы).mtd"
+	End With
+
+	ShowWhatsNew "WhatNewIdeal.chm", "026.htm"
+End Sub
+'-------
+'
+'-------
+

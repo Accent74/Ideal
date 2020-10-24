@@ -1,0 +1,163 @@
+'-----------
+'	Идеал 034
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+
+	CheckCodes Workarea.Codes
+	updater.refresh
+
+	UpdateCodeScript "2100п", "2100п Подоходный налог.mtd", Updater
+	UpdateCodeScript "2220п", "2220п Алименты.mtd", Updater
+	UpdateCodeScript "0530m", "0530m Компенсация отпускных.mtd", Updater
+	UpdateCodeScript "3010п", "3010п Выплата зарплаты.mtd", Updater
+
+	updater.refresh
+
+	If CopyFile("Розрахунок збору пенсiйного страхування (Додаток 23).ash", "Розрахунок збору пенсiйного страхування (Додаток 23) с 01.07.ash") Then
+		updater.writelog "Обновлен отчет " & "Розрахунок збору пенсiйного страхування (Додаток 23)"
+	Else
+		updater.writelog "Отчет не обновлен " & "Розрахунок збору пенсiйного страхування (Додаток 23)"
+	End If
+
+	AddIdexForms updater
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "034.htm"
+
+End Sub
+
+'----
+'
+'----
+Sub RepairDepends(oCode)
+	Dim i
+	Dim dCode
+
+	Set dCode = CreateLibObject("Map")
+
+	For i = 1 To oCode.Depends.Count
+		If Not dCode.Exists(i) Then
+			dCode(i) = oCode.Depends.Item(i).ID
+		End If
+	Next
+
+	For i = 1 To dCode.Count
+		oCode.RemoveDependency dCode(i)
+	Next
+
+	oCode.Save
+
+	For i = 1 To dCode.Count
+		oCode.AddDependency dCode(i)
+	Next
+
+	oCode.Save
+End Sub
+'----
+'
+'----
+Sub CheckCodes(Codes)
+	Dim i
+
+	For i = 1 To Codes.Count
+		With Codes.Item(i)
+			If .Type = 0 Then
+				If .HasChildren Then CheckCodes .Children
+			Else
+				If .Type = 101 Or .Type = 102 Then
+					RepairDepends Codes.Item(i)
+				End If
+			End If
+		End With
+	Next
+
+End Sub
+'----
+'
+'----
+Sub AddIdexForms(updater)
+	Dim Frm
+	Dim FldRoot, Fld
+
+	Set Frm = Workarea.ProjectItems(1).FindFile("Идеал_Индексация (автомат).afm")
+
+	If Frm Is Nothing Then
+		Set Frm = Workarea.ProjectItems(1).Create("Идеал_Индексация (автомат)", "Идеал_Индексация (автомат).afm")
+		updater.writelog "Подключена форма 'Идеал_Индексация (автомат)'"
+	End If
+
+	Set Fld = GetFolder("Индексация (автомат)", Workarea.Folders)
+
+	If Fld Is Nothing Then
+		Set FldRoot = GetFolder("Прочие доплаты", Workarea.Folders)
+
+		If FldRoot Is Nothing Then
+			Set FldRoot = Workarea.Folders.Create("Прочие доплаты")
+
+			If Not FldRoot Is Nothing Then
+				updater.writelog "Создана папка 'Прочие доплаты'"
+			Else
+				updater.writelog "Не могу создать папку 'Прочие доплаты'"
+				updater.fail = True
+				Exit Sub
+			End If
+		End If
+
+		Set Fld = FldRoot.Children.Create("Индексация (автомат)")
+
+		If Not Fld Is Nothing Then
+			updater.writelog "Создана папка 'Индексация (автомат)'"
+		Else
+			updater.writelog "Не могу создать папку 'Индексация (автомат)'"
+			updater.fail = True
+			Exit Sub
+		End If
+	End If
+
+	If Fld.FormID <> Frm.Id Then
+		Fld.FormID = Frm.Id
+		Fld.Save
+	End If
+
+End Sub
+
+'----
+'
+'----
+Function GetFolder(FldName, FldRoot)
+	Dim i
+	Dim fld
+
+	For i = 1 To FldRoot.Count
+		With FldRoot.Item(i)
+			If .Name = FldName Then
+				Set GetFolder = FldRoot.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then
+				Set fld = GetFolder(FldName, .Children)
+				If Not fld Is Nothing Then
+					Set GetFolder = Fld
+					Exit Function
+				End If
+			End If
+		End With
+	Next
+
+	Set GetFolder = Nothing
+
+End Function
+'----
+'
+'----

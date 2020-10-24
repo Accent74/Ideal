@@ -1,0 +1,48 @@
+'-----------
+'	Идеал 045
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	If Not Updater.fail Then updatemethods updater
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "045.htm"
+End Sub
+
+'----
+'
+'----
+Sub updatemethods(updater)
+	updatemethod workarea.GetCodeID("2130п"), "2130п Безработица.mtd", updater
+	updatemethod WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", updater
+End Sub
+'----
+'
+'----
+Sub updatemethod(CodeID, CodeFile, updater)
+	Dim MtdFile
+
+	MtdFile = CreateLibObject("Redirect").GetFullPath(CodeFile, True)
+
+	If MtdFile = "" Then
+		updater.writelog "Невозможно обновить метод. Файл '" & CodeFile & "'не найден."
+		updater.fail = True
+	Else
+
+		If CodeID = 0 Then 
+			updater.writelog "Метод '" & CodeFile & "' не найден"
+			updater.fail = True
+		Else
+			Workarea.Code(CodeID).setScriptFromFile MtdFile
+			updater.writelog "Метод '" & CodeFile & "' обновлен."
+		End If
+	End If
+End Sub
+'----
+'
+'----

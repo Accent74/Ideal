@@ -1,0 +1,152 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=Windows-1251"> 
+<link rel="stylesheet" type="text/css" href="basic.css">
+<title>Пенсионный фонд</title>
+
+<script>
+
+var dialogArgument = null
+
+function on_load()
+{
+	if (dialogArgument == null)
+		return;
+	var pt = dialogArgument.getItem(0);
+	var m  = dialogArgument.getItem(1);
+	var y  = dialogArgument.getItem(2);
+	// наименование шаблона
+	caption.innerHTML = pt.Name;
+	var f = pt.Application.Global.CreateLibObject('Formatter');
+	// это период для расчетов
+	period1.innerHTML = f.FormatDateDMY(1, m, y, 'mmmm yyyy г.');
+	period2.innerHTML = period1.innerHTML;
+	var xr = common_props.rows('baserow');
+	var ri = xr.rowIndex + 1;
+	var ptd = pt.PTDList
+	var pta = pt.PTAList
+	for (var d = 1; d<=ptd.Count; d++) {
+		var ptdi = ptd.Item(d)
+		for (var a=1; a<=pta.Count; a++) {
+			var ptai = pta.Item(a)
+			var nr = common_props.insertRow(ri++);
+			// document
+			var nc = nr.insertCell(-1);
+			nc.className = 'TCL';
+			if (ptdi.FormID == 0)
+				nc.innerHTML = '<Без документа>';
+			else
+				nc.innerHTML = pt.Application.Workarea.ProjectItem(ptdi.FormID).Name;				
+			// department
+			nc = nr.insertCell(-1);
+			nc.className = 'TCV';
+			nc.innerHTML = ptai.Name;
+		}
+	}
+}
+
+function onok()
+{
+}
+
+function oncancel()
+{
+}
+
+</script>
+
+<style>
+TD.FR
+{
+  padding:10px; 
+  border-left:1px solid steelblue;
+  border-bottom:1px solid steelblue;
+  border-right:1px solid steelblue
+  verticat-align:top;
+  background-color:white;
+}
+
+TD.ActiveTab {padding: 4px 7px 4px 7px;border-left:1px solid steelblue; border-top:1px solid steelblue; border-right:1px solid steelblue; background-color:white}
+TD.PaddingTab {padding: 4px 7px 4px 7px;border-bottom:1px solid steelblue; background-color:ghostwhite}
+DIV.ActiveDiv {font-weight:bold;cursor:default; color:black; text-decoration:none; white-space:nowrap}
+
+TD.TTH
+{
+  color:darkblue;
+  background-color:lightsteelblue;
+  font-weight:bold;
+  filter:progid:DXImageTransform.Microsoft.Wave(freq=1,LightStrength=10,Phase=0,Strength=0);
+}
+
+TD.TTP
+{
+  background-color:#dcdcdc;
+  border-bottom:1px solid silver;
+  border-right:1px solid silver;
+  font-weight:bold;
+  text-align:center
+}
+
+TD.TCH
+{
+  text-align:right;
+  width:5%;
+  border-bottom:1px solid silver;
+  background-color:#dcdcdc;
+  border-left:1px solid silver;
+  white-space:nowrap;
+}
+
+TD.TCV
+{
+  background-color:Cornsilk;
+  border-right:1px solid silver;
+  border-bottom:1px solid silver;
+  font-weight:bold;
+}
+
+TD.TCL
+{
+  background-color:Cornsilk;
+  border-right:1px solid silver;
+  border-left:1px solid silver;
+  border-bottom:1px solid silver;
+  font-weight:bold;
+}
+
+</style>
+</head>
+<body topmargin=10 bottommargin=10 bgColor=GhostWhite onload="on_load()" >
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr height="1"><td>
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr>
+    <td class=ActiveTab noWrap width="1"><div id=caption class="ActiveDiv">[template name]</div></td>
+    <td class=PaddingTab nowrap width="*">&nbsp;</td>
+</tr>    
+</table>    
+</td></tr>
+<tr>
+<td vAlign=top class="FR">
+<table id="common_props" cellspacing=0 cellpadding=3 border=0 width="100%">
+  <tr><td class="TTP" colspan=2><div id="period1">[period_name]</div></td></tr>
+  <tr><td colspan=2 style="font-size:1pt">&nbsp;</td></tr>
+  <tr id=baserow><td class="TTH">Документ</td><td class="TTH">Сотрудники</td></tr>
+  <!--
+  <tr><td class="TCL">Ведомость начислений по окладу</td><td  class="TCV">Администрация</td></tr>
+  <tr><td class="TCL">Ведомость обязательных удержаний</td><td  class="TCV">Администрация</td></tr>
+  -->
+  <tr><td colspan=2 style="font-size:1pt">&nbsp;</td></tr>
+</table>
+Будут созданы перечисленные в списке документы для указанных подразделений за <b><div id=period2>[period name]</div></b>
+</td>
+</tr>
+<tr height=1>
+  <td align=right style="padding-top:10px">
+    <input class="BTN" id="IDOK" type=button value="Создать" size=52 onclick="onok()">
+    <input class="BTN" id="IDCANCEL" type=button value="Закрыть" size=52 onclick="oncancel()">
+  </td>
+</tr>
+</table>
+</body>
+</html>

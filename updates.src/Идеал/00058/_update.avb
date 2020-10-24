@@ -1,0 +1,74 @@
+'-----------
+'	Идеал 058
+'	модуль обновления 
+'-----------
+
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	AddFormAndFolder "Прочее", "ЕСВ", "Идеал_ЕСВ", updater
+	AddCodes updater
+	RunScript updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "058.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddCodes(updater)
+	Dim RootFolder
+
+	If updater.fail Then Exit Sub
+
+	Set RootFolder = GetFolder("Отчеты", workarea.codes)
+
+	If RootFolder Is Nothing Then 
+		Set RootFolder = Workarea.Codes.Create(0, "Отчеты")
+		updater.writelog "Сообщение: добавлена папка Отчеты"
+	End If
+
+	Set RootFolder = RootFolder.Children
+
+	CreateFOTCode "0045", "ЕСВ 2011 (ЗП)", 9, RootFolder, updater
+	CreateFOTCode "0046", "ЕСВ 2011 (больничные)", 9, RootFolder, updater
+	CreateFOTCode "0047", "ЕСВ 2011 (отпускные)", 9, RootFolder, updater
+
+	updater.refresh
+
+	CheckDEpends Array("0045"), Array("0110", "0115", "0210", "0220", "0230", "0240", "0320", "0530"), updater
+	CheckDEpends Array("0046"), Array("0410","0420", "0430"), updater
+	CheckDEpends Array("0047"), Array("0510","0520"), updater
+
+	updater.refresh
+
+End Sub
+'----
+'
+'----
+Sub RunScript(updater)
+	Dim RD, msgTxt
+
+	msgTxt = "Невозможно выполнить процедуру "
+
+	Set RD = CreateLibObject("Redirect")
+
+	If App.Apptype = "DAO" Then
+		RunSQLFile_DAO RD.GetFullPath("ideal_058_dao.sql"), updater
+	End If
+
+End Sub
+'----
+'
+'----

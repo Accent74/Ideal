@@ -1,0 +1,45 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 26/02/2015 11:22:51
+'= Автор  : admin
+'= Код    : 2002 ЕСВ, больничный (33,2%) для всех
+'= Метод  : ЕСВ, больничный (33,2% для всех, ФОТ)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If Not .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3) Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum <> 0 Then
+				If AgSum > .Sum3 Then AgSum = .Sum3
+
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+		End If
+	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type <> 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = iif(Tr.WPeriod.Year < 2016, ParentCode.Percent, 22)						' % начислений
+		.Sum2 = ParentCode.threshold					' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub

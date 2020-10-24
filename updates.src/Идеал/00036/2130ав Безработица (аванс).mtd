@@ -1,0 +1,56 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 05/09/2006 13:22:43
+'= Автор  : admin
+'= Код    : 2130а Безработица (аванс)
+'= Метод  : Безработица (аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+	Dim BaseSum
+
+	With Tr
+
+		.Tariff = .DependsW.Sum
+
+		If (.String1 ="07") Or _
+				(.Long2 Or .Long1) Or _
+				(.Date1 <> 0.0 And .Date1 <= .wperiod.firstday) Then
+			CalcSum = - Round2(.LookUp.SumWD, 2)
+		Else
+			If .Tariff >= MAX_FOUND_CY Then 
+     	  BaseSum = MAX_FOUND_CY 
+			Else
+				BaseSum = .Tariff
+	     End If
+
+			CalcSum = Round2(BaseSum * 0.5 / 100.0, 2) - Round2(.LookUp.SumWD, 2)	' 0.5 %
+		End If
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Long1 = .Agent.Prop(PROP_TRUD)
+
+			If .CPeriod.year < 2007 Then 
+				.Long2 = .Agent.Prop(PROP_DISAB)
+			Else
+				.Long2 = False
+			End If
+
+			.Date1 = .Agent.Prop(PROP_PENS)
+
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+		End If
+	End With
+
+End Sub
+
+
+

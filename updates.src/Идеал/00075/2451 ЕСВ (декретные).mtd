@@ -1,0 +1,90 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 27/08/2013 14:29:33
+'= Изменен : 13/09/2013
+'= Автор  : admin
+'= Код    : 2450 ЕСВ (декретные)
+'= Метод  : ЕСВ (декретные)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+	
+	With Tr
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+'		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+'								CalcDependsCodeSum("2410а", .DependsW)
+
+		WorkedPaySum = CalcSumByPeriod(.AgID, workarea.getcodeid("2410"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2410а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали базовую сумму для расчета ЕСВ для больничных
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали сумму аванса по налогу
+		PrevTax = 0
+'		PrevTax = GetCodeSum(.DependsW, "2451а")
+		
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If MaxSum <= 0 Then
+			.Tariff = 0
+		ElseIf .Tariff > MaxSum Then
+			.Tariff = MaxSum
+		End If
+
+		.Sum = .Tariff * .Sum3 - PrevTax - .LookUp.SumWD
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+

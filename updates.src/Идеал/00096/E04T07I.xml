@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<DECLAR xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="E04T07I.XSD">
+  <DECLARHEAD>
+    <VER>1.0</VER>
+    <C_DOC>E04</C_DOC>
+    <C_PFU></C_PFU>
+    <C_REG></C_REG>
+    <C_RAJ></C_RAJ>
+    <SOFTWARE>УкрЗарплата 2015.06.04</SOFTWARE>
+    <TIN></TIN>
+    <PERIOD_MONTH></PERIOD_MONTH>
+    <PERIOD_YEAR></PERIOD_YEAR>
+    <DATA_FILL></DATA_FILL>
+  </DECLARHEAD>
+  <DECLARBODY>
+    <PAGE>
+      <HEADER>
+        <PAGE_NUM>1</PAGE_NUM>
+        <FIRM_EDRPOU></FIRM_EDRPOU>
+        <FIRM_NAME></FIRM_NAME>
+        <FORM_TYPE>1</FORM_TYPE>
+      </HEADER>
+      <TABLE>
+      </TABLE>
+      <FOOTER>
+        <ROWS></ROWS>
+        <BOSS_NUMIDENT></BOSS_NUMIDENT>
+        <FIRM_BOSS></FIRM_BOSS>
+        <BUH_NUMIDENT xsi:nil="true" />
+        <FIRM_BUH xsi:nil="true" />
+      </FOOTER>
+    </PAGE>
+  </DECLARBODY>
+</DECLAR>

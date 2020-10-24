@@ -1,0 +1,41 @@
+'-----------
+'	Идеал 022
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "definition.avb"
+'#include "_ideal_update_func.avb"
+
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim NewCode
+	Dim i
+
+	AddUTFiled "НПФ", "Регистрационный № в ФСС БР"
+
+	EnumLGID = workarea.enum(ENUM_DISCOUNT	).ItemID(1)
+	EnumDID = workarea.enum(ENUM_DISDOHOD).ItemID(1)
+
+	With WorkArea
+		.Code(.GetCodeID("0320a")).SetScriptFromFile "0320a Премия Сдельная (вручную).mtd"
+		With .Codes
+			Set NewCode = .Create(0, "", "Отчеты")
+			Set NewCode = NewCode.Children.Create(103, "0023", "Отчет в пенсионный фонд")
+		End With
+	End With
+
+	CheckDependsCode NewCode, Array("0110","0115","0210","0220","0230","0240",_
+														"0250","0260","0270","0310","0320","0410",_
+														"0420","0440","0450","0510","0520","0530",_
+														"0610","020","091","096")
+
+	WorkArea.UserParam("CONFIG_DBVERSION1") = 22
+	ShowWhatsNew "WhatNewIdeal.chm", "022.htm"
+
+End Sub
+

@@ -1,0 +1,84 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 24/02/2015 12:07:05
+'= Автор  : admin
+'= Код    : 2000 ЕСВ базовый
+'= Метод  : ЕСВ Базовый (ФОТ)
+'==============================================
+'#include "definition.avb"
+
+Sub Method_OnCalc(Tr)
+	Dim AgSum, SumPMin
+
+	With Tr
+		If Not .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3)  Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum <> 0 Then
+				If Not (.agent.Prop("Совместитель") And Not .agent.Prop("Состоит в трудовых отношениях")) Then 
+					If AgSum > .Sum3 Then AgSum = .Sum3
+
+					SumPMin = .Sum3 / iif(Tr.WPeriod.Year < 2016, 17, 25)
+
+					If AgSum < SumPMin Then 
+						If Not IsAgIsIll(.Agent, .WPeriod.ID) And CheckAllDays(Tr) Then
+							AgSum = SumPMin
+						End If
+					End If
+				End If
+
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+		End If
+		
+	End With
+End Sub
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type <> 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = iif(Tr.WPeriod.Year < 2016, 33.2, ParentCode.Percent)		' % начислений
+		.Sum2 = iif(Tr.WPeriod.Year < 2016, 23426, ParentCode.threshold) 	' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub
+'---
+'
+'---
+Function CheckAllDays(Tr)
+	Dim maxHours, maxDays, AgGrID
+
+	AgGrID = Tr.Agent.Prop("График")
+
+	With WorkArea.TimeTable(AgGrID)
+		maxHours = .Hours(tr.wperiod.firstday)
+		maxDays = .Days(tr.wperiod.firstday)
+	End With
+
+	If Tr.DependsW.Hours <> 0 Then
+		CheckAllDays = (Tr.DependsW.Hours >= maxHours)
+	ElseIf Tr.DependsW.Days <> 0 Then
+		CheckAllDays = (Tr.DependsW.Days >= maxDays)
+	Else
+		CheckAllDays = False
+	End If
+
+End Function
+'---
+'
+'---

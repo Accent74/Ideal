@@ -1,0 +1,52 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 18:08:34
+'= Автор  : admin
+'= Код    : 2400a НДФЛ (аванс)
+'= Метод  : НДФЛ (аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, TaxSum, PrevTaxSum
+
+	With Tr
+		' исключаем сумму налога, начисленного на аванс
+		PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+		.Tariff = .DependsW.Sum + PrevTaxSum
+
+		If .Tariff > .Sum3 Then
+			TaxSum = Round2((.Tariff - .Sum3) * iif(tr.wperiod.year < 2015, 0.17, iif(tr.wperiod.year < 2016, 0.2, 0.18)) + .Sum3 * iif(tr.wperiod.year < 2016, 0.15, 0.18), 2)
+		Else
+			TaxSum = Round2(.Tariff * iif(tr.wperiod.year < 2016, 0.15, 0.18), 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum
+		If .sum < 0 Then .sum = 0
+	End With
+End Sub
+
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+		
+	End With
+End Sub

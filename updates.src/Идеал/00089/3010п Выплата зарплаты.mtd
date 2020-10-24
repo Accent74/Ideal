@@ -1,0 +1,84 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:10:50
+'= Автор  : admin
+'= Код    : 3010 Выплата зарплаты
+'= Метод  : Выплата зарплаты
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .Long1 <> 0 Then
+			If Not .Long3 Then
+				.Sum = .Tariff
+			Else
+				.Tariff = Int(.Tariff)
+				.Sum = .Tariff
+			End If
+		Else
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim nType
+	Dim PrevSum
+	Dim TotalSum
+
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		If .ApplySource = "Long3" Then
+			If Not .Long3 Then
+				.Tariff = .Sum1
+			Else
+				.Tariff = Int(.Sum1)
+			End If
+			Exit Sub
+		End If
+
+		'PrevSum = GetPverSum(.AgID, .CodeID, .WPeriod.Month, .WPeriod.Year)
+		'TotalSum = Workarea.CreateIntObject("Calc").GetAgentSum(.AgID, .WPeriod.Month, .WPeriod.Year) '- PrevSum
+		TotalSum = ideal_GetAgentSum(.AgID, .WPeriod.ID) '- PrevSum
+
+		If TotalSum < 0 Then 
+			.Tariff = 0
+			.Sum1 = 0
+		Else
+			.Tariff = TotalSum
+			.Sum1 = TotalSum
+		End If
+
+		.Long2 = True ' Выплачена
+
+		If .Long1 = 0 Then
+			nType = .Agent.Prop(PROP_DISDOHOD_TAG)
+
+			If nType = 0 Then
+				.Long1 = 1
+			Else
+				.Long1 = WorkArea.Enum(ENUM_DISDOHOD).ItemNameID(nType)
+			End If
+		End If
+
+	End With
+End Sub
+'----
+'
+'----
+Function GetPverSum(AgID, CodeID, nMonth, nYear)
+	Dim pfind
+	Dim pTransColl
+
+	Set pfind = Workarea.CreateIntObject("PFinder")
+	Set pTransColl = pfind.FindPTrans("agent_code_c", AgID, CodeID, nMonth, nYear)
+
+	GetPverSum = pTransColl.RawSum
+End Function
+'----
+'
+'----

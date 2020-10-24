@@ -1,0 +1,109 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 12/03/2011 13:11:52
+'= Автор  : admin
+'= Код    : 2400 НДФЛ
+'= Метод  : НДФЛ (шахтеры)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TaxSum, PrevTaxSum
+	Dim PayAche, PayRoll
+	Dim ES, SumTaxOver
+
+	With Tr
+		' исключаем сумму налога, начисленного на аванс
+		PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+
+		.Tariff = .DependsW.SumIN + PrevTaxSum
+
+		If .Tariff > .Sum3 Then
+
+			PayAche = GetCodeSumW(.Depends, "0046")
+			PayRoll = .Tariff - PayAche
+
+			If .Tariff > .Sum2 Then
+				SumTaxOver = (.Sum2 - .Sum3)
+			Else
+				SumTaxOver = (.Tariff - .Sum3)
+			End If
+
+			If PayAche = 0 Then
+				TaxSum = .Sum3 * 0.964 * 0.10
+				TaxSum = TaxSum + ((.Tariff - .Sum3) - SumTaxOver * 0.036) * 0.10
+			ElseIf PayRoll = 0 Then
+				TaxSum = .Sum3 * 0.98 * 0.10
+				TaxSum = TaxSum + ((.Tariff - .Sum3) - SumTaxOver * 0.02) * 0.10
+			Else
+				TaxSum = PayRoll * 0.964 * 0.15
+				TaxSum = TaxSum + (PayAche - .Tariff + .Sum3) * 0.98 * 0.10
+				TaxSum = TaxSum + ((.Tariff - .Sum3) - SumTaxOver * 0.02) * 0.10
+			End If
+
+			TaxSum = Round2(TaxSum, 2)
+			.Tariff = .DependsW.Sum + PrevTaxSum
+		Else
+			.Tariff = .DependsW.Sum + PrevTaxSum
+			TaxSum = Round2(.Tariff * 0.10, 2)
+		End If
+
+		If .Tariff < 0 Then .Tariff = 0
+
+		.Sum = TaxSum - PrevTaxSum - .LookUp.SumWD
+
+		If .Sum < 0 Then .Sum = 0
+	End With
+End Sub
+'---
+'
+'---
+Function GetCodeSumW(Deps, Code)
+	Dim i, CodeDeps, SumW
+
+	CodeID = Workarea.GetCodeID(Code)
+	SumW = 0
+
+	If CodeID <> 0 Then
+	
+		Set CodeDeps = Workarea.Code(CodeID).Depends
+
+		For i = 1 To CodeDeps.Count
+			SumW = SumW + GetCodeSum(deps, CodeDeps.Item(i).Code)
+		Next
+	End If
+
+	GetCodeSumW = SumW
+
+End Function
+'---
+'
+'---
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+End Function
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		
+	End With
+End Sub
+'---
+'
+'---

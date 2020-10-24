@@ -1,0 +1,214 @@
+'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : "Импакт"
+'==============================================
+'= Глобальный модуль
+'= Автоматически связывается со всеми методами
+'==============================================
+Sub Global_SetHours(ByRef Tr, b1, b2, dat)	
+	If Not b1 And Not b2 Then Exit Sub
+	With Tr
+		If .Agent.Type <> 3 Then Exit Sub
+ 		Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+		If tt Is Nothing Then Exit Sub
+		If b1 Then .Hours = tt.Hours(dat.firstday)
+		If b2 Then .GHours = tt.Hours(dat.firstday)
+	End With
+End Sub
+
+'==============================================
+Sub Global_SetDays(ByRef Tr, b1, b2, dat)
+	Dim TotalDays
+
+  If Not b1 And Not b2 Then Exit Sub
+
+  With Tr
+  		If .Agent.Type <> 3 Then Exit Sub
+     Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+     If tt Is Nothing Then Exit Sub
+
+     TotalDays = tt.Days(dat.firstday)
+		If b1 Then .GDays = TotalDays   
+
+   	With .Agent
+			TotalDays = CheckAgDays(.DateIn, .DateOut, Dat, tt, TotalDays, tr)	
+		End With
+
+    	If b2 Then .Days = TotalDays
+	End With
+End Sub
+
+'==============================================
+Sub SetDb(ByRef Tr)
+	Dim Ag
+
+	Set Ag = Nothing
+
+	With Tr
+		If .DbCode <> "" Then .Long1 = iif(IsNumeric(.DbCode), .DbCode, 0)
+		If .Long1 <> 0 Then Exit Sub
+
+		If .Code.DbCode <> "" Then
+			.Long1 = iif(IsNumeric(.Code.DbCode), .Code.DbCode, 0)
+		ElseIf .Agent.Prop(PROP_DB) > 0 Then
+			.long1 = .Agent.Prop(PROP_DB)
+		ElseIf .orgid > 0 Then
+			Set Ag = workarea.agent(.orgID).params
+		Else
+			Set Ag = workarea.agent(.AgID).params
+		End If
+		
+		If Not Ag Is Nothing Then
+			If Ag.Exists(PRM_DB) Then .long1 = Ag.Item(PRM_DB).value2
+		End If
+
+	End With
+End Sub
+
+'==============================================
+Function GetSumP(c) ' сумма положительных
+	Dim i
+	Dim cy
+	cy = 0
+	For i = 1 To c.Count
+		With c.Item(i)
+			If .Code.Type = 101 Then
+				cy = cy + .Sum
+			End If
+		End With
+	Next
+	GetSumP = cy
+End Function
+
+'==============================================
+' Результат - сумма по указанному коду для корреспондента в текущем рабочем периоде
+' Используется в Подоходном
+Function GetSumByCode(agID, codeID)
+	Dim rez
+	rez = 0
+	Dim rs
+	Set rs = App.WorkArea.DAODataBase.OpenRecordset( _
+		"SELECT JP_SUM FROM P_JOURNAL WHERE JP_DONE = 1 " & _
+			"And AG_ID = " & agID & _
+			" AND W_PERIOD = " & WorkArea.Period.ID & _
+			" AND MTC_ID = " & codeID )
+	If Not rs.eof	Then _
+		rez = rs.fields("JP_SUM")		
+	GetSumByCode = rez
+End Function
+
+'==============================================
+Function CheckAgDays(dIn, dOut, dat, tt, TotalDays, tr)
+  	Dim CheckStart, CheckEnd, DayStart, DayEnd
+  	Dim aDays, i, maxdays, FlagStart, CountDays
+  	Dim DocDate
+
+	If Not Tr.PDocument Is Nothing Then
+		DocDate = Tr.PDocument.Date
+	Else
+		DocDate = 0
+	End If
+
+	CheckStart = (Dat.month = Month(dIn) And Dat.Year = Year(dIn))
+  	CheckEnd = (Dat.month = Month(dOut) And Dat.Year = Year(dOut))
+
+	If CheckStart Or CheckEnd Then
+  		DayStart = Day(dIn)
+    	DayEnd = Day(dOut)
+
+    	If (DayStart = DayEnd) And CheckStart And CheckEnd Then
+     	CheckAgDays = 1
+       Exit Function
+    	Else
+
+			With WorkArea.MonthCalendar(dat.Month, Dat.Year)
+				aDays = .WeekDaysArray(2)
+  	     	FlagStart = Not CheckStart
+		     CountDays = 0
+				maxdays = .DaysCount(0) + .DaysCount(1) + .DaysCount(2) - 1
+			End With
+
+  	   	For i = 0 To maxdays
+     		If CheckStart Then FlagStart = (DayStart <= (i + 1))
+
+       			If FlagStart Then
+          		If aDays(i) = 0 Then CountDays = CountDays + 1
+	         	End If
+
+  	       		If CheckEnd Then
+          		If DayEnd = (i + 1) Then Exit For
+         		End If
+    		Next
+
+			With WorkArea.TimeTable(Tr.Agent.Prop("График"))
+				maxDays = .Days(tr.wperiod.firstday)
+			End With
+
+     	CheckAgDays = iif(CountDays > maxDays, maxDays, CountDays)
+  		End If
+  Else
+		If Year(DocDate) = 2009 And Month(DocDate) = 1 Then
+			If DocDate < CDate("13/01/2009") Then
+				CheckAgDays	= 6
+			Else
+				CheckAgDays	= 14
+			End If
+		Else
+	  		CheckAgDays = TotalDays
+		End If
+  End If
+
+End Function
+
+'==============================================
+Function IsAgDismiss(Ag, TrPeriod)
+	Dim mm, yy
+	Dim DateOut
+
+	If IsNull(Ag.Prop(PROP_UVOLEN)) Then
+		IsAgDismiss = False
+	Else
+		DateOut = Ag.Prop(PROP_UVOLEN)
+		mm = Month(DateOut)
+		yy = Year(DateOut)
+		IsAgDismiss = Month(TrPeriod.firstday) = mm And Year(TrPeriod.firstday) = yy
+	End If
+
+End Function
+'==============================================
+
+Function EnumIDByName(EnumID, EnumName)
+	Dim i
+	Dim En
+
+	Set En = WorkArea.Enum(CLng(EnumID))
+
+	For i = 1 To En.Count
+		If En.ItemName(i) = EnumName Then
+			EnumIDByName = En.ItemID(i)
+		End If
+	Next
+	
+End Function
+'==============================================
+
+Function EnumIndexByID(EnumID, ID)
+	Dim i
+	Dim En
+
+	Set En = WorkArea.Enum(CLng(EnumID))
+
+	For i = 1 To En.Count
+		If En.ItemID(i) = ID Then
+			EnumIndexByID = i
+			Exit Function
+		End If
+	Next
+
+	EnumIndexByID = 0
+	
+End Function
+'==============================================

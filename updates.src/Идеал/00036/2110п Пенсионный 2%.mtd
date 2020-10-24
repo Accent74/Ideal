@@ -1,0 +1,45 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:00:04
+'= Автор  : admin
+'= Код    : 2110 Пенсионный фонд
+'= Метод  : Пенсионный фонд
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		.Tariff = .DependsW.SumIN
+
+		Select Case .String1 
+			Case "07"
+				CalcSum = - Round2(.LookUp.SumWD, 2) - Round(.DependsW.SumWD, 2)
+			Case Else
+				If .Tariff >= MAX_FOUND_CY Then 
+		       BaseSum = MAX_FOUND_CY	
+				Else
+					BaseSum = .Tariff
+		     End If
+		
+				If BaseSum <= 150 Then
+					CalcSum = 0
+				Else
+					CalcSum = Round2(BaseSum / 50, 2) - Round2(.LookUp.SumWD, 2) - Round2(.DependsW.SumWD, 2)
+				End If
+		End Select
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+
+Sub Method_OnApply(Tr)
+	With Tr
+		.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+	End With
+End Sub
+

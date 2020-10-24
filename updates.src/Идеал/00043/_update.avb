@@ -1,0 +1,71 @@
+'-----------
+'	Идеал 043
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddTaxDepParams Updater
+	updatetables updater
+
+	updater.refresh
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "043.htm"
+End Sub
+
+'----
+'
+'----
+Sub AddTaxDepParams(Updater)
+	Dim UTableID, FieldID
+
+	UTableID = Workarea.GetSysUTableID( "ДРП" )
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом ДРП"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	FieldID = GetUTFieldIDByName2( UTableID, "Параметр", updater )
+	If updater.fail Then Exit Sub
+
+	InsertUT UTableID, FieldID, GetCountParams( UTableID, FieldID ), "Код ГНИ"
+	InsertUT UTableID, FieldID, GetCountParams( UTableID, FieldID ), "Тип ГНИ"
+	InsertUT UTableID, FieldID, GetCountParams( UTableID, FieldID ), "ГНИ Код области"
+	InsertUT UTableID, FieldID, GetCountParams( UTableID, FieldID ), "ГНИ Код района"
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Октябрь 2008"
+	SetUTFieldValue UTableID, fMonth, "Ноябрь 2008"
+	SetUTFieldValue UTableID, fMonth, "Декабрь 2008"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+
+End Sub

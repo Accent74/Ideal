@@ -1,0 +1,100 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 30/08/2006 13:42:44
+'= Автор  : admin
+'= Код    : 0801 Льгота
+'= Метод  : Льгота по подоходному налогу
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dismiss
+	Dim AgSum, ChildSum
+	Dim Disc
+
+	With Tr
+	
+		.Sum1 = 0
+		.Tariff = 0
+
+		If String1 <> "02" Then
+			If .Agent.Prop(PROP_TRUD) = False Then
+
+				If IsNull(.Agent.Prop(PROP_UVOLEN)) Then
+					dismiss = False
+				Else
+					mm = Month(.Agent.Prop(PROP_UVOLEN))
+					yy = Year(.Agent.Prop(PROP_UVOLEN))
+					dismiss = (Month(.wperiod.firstday) = mm And Year(.wperiod.firstday) = yy)
+				End If
+
+				If Not dismiss Then 
+					.Tariff = .DependsW.Sum
+					If .Tariff <> 0 Then
+
+						AgSum = CalcDiscount(.Tariff, .String2, .Long2, 1, .Sum2, .Sum3)
+
+						If .Long3 Then
+							ChildSum = CalcDiscount(.Tariff, "02", EnumIDByName(ENUM_DISCOUNT, "02"), .Long1, .Sum2, .Sum3)
+						Else
+							ChildSum = 0
+						End If
+
+						If AgSum <> 0 And ChildSum <> 0 Then
+							.String3 = "04"
+						ElseIf AgSum <> 0 Then
+							.String3 = .String2
+						ElseIf ChildSum <> 0 Then
+							.String3 = "02"
+						Else
+							.String3 = ""
+						End If
+
+						.Sum1 = AgSum + ChildSum- .LookUp.SumWD
+					End If
+				End If
+			End If
+		End If
+		.Sum = .Sum1
+	End With
+End Sub
+
+Function CalcDiscount(Sum2Calc, DiscCode, DiscID, ManCount, ByVal MaxLgot, DiscSum)
+	Dim MaxSum
+	Dim DiscPercent
+
+	DiscPercent = CCur(Replace(workarea.enum(ENUM_DISCOUNT).itemtagid(DiscID),"%",""))/100
+	MaxSum = DiscSum * DiscPercent
+
+	If DiscCode = "02" Then	MaxLgot = MaxLgot * ManCount
+		
+	If Sum2Calc <= MaxLgot Then
+		CalcDiscount = MaxSum * ManCount
+	Else
+		CalcDiscount = 0
+	End If
+
+End Function
+
+Sub Method_OnApply(Tr)
+	Dim Ag
+	Dim Tbl
+
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			Set Ag = .Agent
+			.Long1 = Ag.Prop(PROP_DISCHILD_TAG)
+			.Long2 = Ag.Prop(PROP_DISQUANT_TAG)
+			.Long3 = Ag.Prop(PROP_DISQUANT_CHILD_TAG)
+
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+			.String2 = workarea.enum(ENUM_DISCOUNT).ItemNameID(.Long2) 
+
+			Set Tbl = WorkArea.UTable(USRTBL_LGT)
+
+			.Sum2 = Tbl.GetValue(1,USRTBL_DLTM,2)
+			.Sum3 = Tbl.GetValue(1,USRTBL_DPAY,2)
+
+		End If
+	End With
+End Sub
+
+

@@ -1,0 +1,133 @@
+'-----------
+'	Идеал 073
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2013
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatetables updater
+	addparameters 
+	addreport updater
+
+	CheckDEpends Array("2002", "2420"), Array("0430"), True, updater
+	CheckDEpends Array("0024"), Array("0600"), False, updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "074.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub addreport(updater)
+	Dim AgID
+
+	AgID = workarea.browse(acAgent,0,,,"Выберите корреспондента Моя фирма")
+
+	If AgID = 0 Then
+		updater.writelog "Корееспондент Моя фирма не выбрал. Невозможно добавить отчет."
+		updater.fail = True
+	Else
+		AddReport2 "Расчетная ведомость 2013", "Расчетная ведомость2013.ash", 1, AgID, updater
+	End If
+End Sub
+'----
+'
+'----
+Sub addparameters
+	Dim Op, Tr
+
+	Set Op = Workarea.CreateDocument
+	Set Tr = Op.TransRM(1, 1)
+
+	With Tr.Params
+		If Not .Exists("Long7") Then .Create vbLong, "Long7"
+	End With
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Июль 2013", updater
+	SetUTFieldValue UTableID, fMonth, "Август 2013", updater
+	SetUTFieldValue UTableID, fMonth, "Сентябрь 2013", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+'----
+'
+'----

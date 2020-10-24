@@ -1,0 +1,45 @@
+'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 01/03/2004 11:49:59
+'= Автор  : Alib Ezbar
+'= Код    : 2220 Алименты
+'= Метод  : Алименты
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dep
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		Set dep = Tr.Depends
+		.sum2 = dep.Sum
+		
+		If .Sum1 = 0 Then
+			.Tariff = .Sum3
+		Else
+			.Sum3 = Round2(.sum2 * .sum1 / 100, 2)
+			.tariff = .Sum3
+		End If
+
+		.sum = .tariff
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+
+		If .agent.prop(PROP_ALI)<= 0 Then 
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If Tr.ApplySource = "Sum3" Then
+			If .Sum3 <> Round2(.sum2 * .sum1 / 100, 2) Then .Sum1 = 0
+		ElseIf Tr.ApplySource <> "Sum1" Then
+			.sum1 = .agent.prop(PROP_ALI)
+		End If
+
+	End With
+End Sub

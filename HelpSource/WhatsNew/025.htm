@@ -1,0 +1,64 @@
+<html>
+	<head>
+		<title>7.0.025</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=windows-1251">
+		<link rel="stylesheet" type="text/css" href="default.css">
+	</head>
+	<body>
+		<h1>Версия 7.0.025 (29&nbsp;апреля&nbsp;2006)</h1>
+		<table class="navtable">
+			<tr>
+				<td class="navbar"><A href="default.htm">Содержание</A></td>
+				<td class="navbaria"><A href="024.htm">&lt;&lt;Предыдущая</A></td>
+				<td class="navbaria"><A href="026.htm">Следующая&gt;&gt;</A></td>
+				<td with="*">&nbsp;</td>
+			</tr>
+		</table>
+		<HR class="hrnav" color="silver" noShade SIZE="1">
+		<P></P>
+		<DIV class="h2x">
+			Ошибки
+		</DIV>
+		<UL>
+			<LI>
+			Исправлен алгоритм расчета среднедневной заработной платы для расчета 
+			отпускных.
+			<LI>
+			Исправлен алгоритм расчета среднедневной заработной платы для расчета 
+			компенсации за неиспользованный отпуск.
+			<LI>
+				Исправлена ошибка в формах <STRONG>Идеал_Табель (час).afm</STRONG>, <STRONG>Идеал_Табель_Вручную.afm</STRONG>,
+				<STRONG>Идеал_Табель.afm</STRONG>
+			из-за которой появлялись пустые строки в форме, если в подразделении были 
+			уволенные работники.
+			<LI>
+				В формы первичных документов <STRONG>Идеал_Табель (час).afm</STRONG>, <STRONG>Идеал_Табель_Вручную.afm</STRONG>,
+				<STRONG>Идеал_Табель.afm</STRONG>
+			добавлен контроль за вхождением сотрудника в период расчета при построчном 
+			вводе Ф.И.О.
+			<LI>
+				В модуль <STRONG>definition.avb</STRONG> добавлена процедура <STRONG>FillDepartment3</STRONG>, 
+				аналогичная <STRONG>FillDepartment</STRONG>, но правильно работающая с 
+			несколькими методами начислений в массиве.
+			<LI>
+				Внесены изменения в методы начисления с кодами <STRONG>0510в</STRONG>, <STRONG>0520п</STRONG>,
+				<STRONG>0530m</STRONG>.
+			<LI>
+				Отчёт <STRONG>ФСС ВПТ 2006.ash</STRONG>
+			в таблице IV, строка 1, кол. 3,4 теперь тянут начисления по больничным только 
+			по кодам соцстраха.
+			<LI>
+				Отчёт <STRONG>ФСС ВПТ 2006.ash</STRONG> в таблице IV, строка 4 - теперь 
+				программа подставляет данные по коду <STRONG>1001 Отпускные по уходу за ребенком до 
+					3-х лет</STRONG>.</LI></UL>
+		<P>
+			<TABLE class="mailto" id="Table1">
+				<TR>
+					<TD><A href="mailto:support@accent7.com"><IMG src="art/mail.gif" border="0"></A>&nbsp;</TD>
+					<TD>Если у вас есть замечания или пожелания, <A href="mailto:support@accent7.com">напишите 
+							нам</A>.</TD>
+				</TR>
+			</TABLE>
+		</P>
+	</body>
+</html>

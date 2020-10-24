@@ -1,0 +1,66 @@
+'-----------
+'	Идеал 026
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim aNewCode
+	Dim NewForm
+	Dim Fld
+
+	aNewCode = Array("0024 Разовые выплаты", "0025 Больничные", "0026 Отпускные", "0027 Начисления", "0028 1ДФ начисления", "0029 1ДФ удержания")
+	AddCodes "Отчеты", aNewCode
+
+	With WorkArea
+		CheckDependsCode .Code(.GetCodeID("0024")), Array("0310", "0320", "0600", "0610", "0620", "0630")
+		CheckDependsCode .Code(.GetCodeID("0025")), Array("0410", "0420", "0430", "0440", "0450")
+		CheckDependsCode .Code(.GetCodeID("0026")), Array("0510", "0520")
+		CheckDependsCode .Code(.GetCodeID("0027")), Array("0110", "0115", "0210", "0220", "0230", "0240", "0250", "0260", "0270", "0310")
+		CheckDependsCode .Code(.GetCodeID("0028")), Array("0110", "0115", "0210", "0220", "0230", "0240", "0250", "0260", "0270", "0310", _
+															"0320", "0410", "0420", "0430", "0440", "0450", "0510", "0520", "0530", "0540", _
+															"0550", "0600", "0610", "0630", "091", "095", "096")
+		CheckDependsCode .Code(.GetCodeID("0029")), Array("2100")
+		.UserParam("CONFIG_DBVERSION1") = 26
+	End With
+
+	With WorkArea.ProjectItems(1)
+		Set NewForm = .Create("Больничные развернуто после 01.06.2006", "Идеал_Больничные_Развёрнуто2.afm")
+	End With
+
+	Set Fld = FindFolder("Начисления", WorkArea.Folders, True)
+	Set Fld = FindFolder("За отсутствие", Fld, True)
+	Set Fld = FindFolder("Больничные развернуто после 01.06.2006", Fld, True).Parent
+	Fld.FormID = NewForm.ID
+	Fld.Save
+
+	ReplaceFileInProject "payroll_1df.afm", "payroll_1df2.afm"
+
+	ShowWhatsNew "WhatNewIdeal.chm", "026.htm"
+
+End Sub
+'-------
+'
+'-------
+Sub ReplaceFileInProject(OldName, NewName)
+	Dim i
+
+	With Workarea.ProjectItems(1)
+		For i = 1 To .Count
+			With .Item(i)
+				If UCase(.FileName) = UCase(OldName) Then
+					.FileName = NewName
+					.Save
+				End If
+			End With
+		Next
+	End With
+
+End Sub
+

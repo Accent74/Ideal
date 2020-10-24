@@ -1,0 +1,40 @@
+BODY
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+H1
+{
+    FONT-WEIGHT: bold;
+    FONT-SIZE: 10pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+
+A:hover 
+{ 
+  color:darkOrange;
+}
+
+.COPYRIGHT
+{
+    FONT-SIZE: 8pt;
+    COLOR: forestgreen;
+    BORDER-BOTTOM: 1px solid;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+H2
+{
+    MARGIN-TOP: 8pt;
+    FONT-WEIGHT: bold;
+    FONT-SIZE: 8pt;
+    MARGIN-BOTTOM: 2pt
+}
+.INDENT
+{
+    PADDING-LEFT: 4pt
+}
+TABLE
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}

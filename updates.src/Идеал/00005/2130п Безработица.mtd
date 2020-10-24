@@ -1,0 +1,47 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:01:06
+'= Автор  : admin
+'= Код    : 2130 Безработица
+'= Метод  : Безработица
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dep
+	Dim cy
+	Dim lk
+	With Tr
+		Set dep = .DependsW
+		.Tariff = dep.Sum
+		Set lk = .LookUp
+		If workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))="07" Then
+			.Sum = - lk.SumWD	
+			Exit Sub
+		End If
+		If .Agent.Prop(PROP_DISAB) And .Agent.Prop(PROP_PENS) = 0.0 Then ' Инвалид но не пенсионер
+			cy = .Tariff
+			If .Tariff >= MAX_FOUND_CY Then 
+	       cy = MAX_FOUND_CY ' если > 2660
+	     End If
+			.Sum = cy * 0.5 / 100.0 - lk.SumWD' 0.5 %
+		Else
+			If .Agent.Prop(PROP_DISAB) Or .Agent.Prop(PROP_TRUD)	Then ' Инвалид или трудовое соглашение
+				.sum = - lk.SumWD
+				Exit Sub
+			End If
+			If .Agent.Prop(PROP_PENS) <> 0.0 Then
+				If .Agent.Prop(PROP_PENS) <= .wperiod.firstday Then
+					.sum = - lk.SumWD
+					Exit Sub
+				End If
+			End If
+	
+			cy = .Tariff
+			If .Tariff >= MAX_FOUND_CY Then 
+	       cy = MAX_FOUND_CY ' если > 2660
+	     End If
+			.Sum = cy * 0.5 / 100.0 - lk.SumWD' 0.5 %
+		End If
+	End With
+End Sub

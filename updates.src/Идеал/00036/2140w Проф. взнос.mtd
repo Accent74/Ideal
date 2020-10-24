@@ -1,0 +1,39 @@
+'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:23:48
+'= Автор  : admin
+'= Код    : 2140 Профсоюз
+'= Метод  : Профс - пр-ма
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	CalcSum = 0
+
+	With Tr
+		If .Long1 Then
+			If .String1 = "07" Then
+				CalcSum = - Round2(lk.SumWD, 2)
+			Else
+				CalcSum = Round2(.DependsW.Sum / 100.00, 2) '1%
+			End If
+		End If 
+
+		CalcSum = CalcSum - .LookUp.SumWD
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Long1 = (Not IsAgDismiss(.Agent, .wperiod) And .Agent.Type = 3 And .Agent.Prop("Профсоюз")) 
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+		End If
+	End With
+End Sub
+

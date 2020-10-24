@@ -1,0 +1,26 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:28:42
+'= Автор  : admin
+'= Код    : 0530 Компенсация отпускных
+'= Метод  : Компенсация отпускных
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days <> 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.Tariff = .sum1
+		.sum   = .sum1 * .days
+		.dbCode = .Long1
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub

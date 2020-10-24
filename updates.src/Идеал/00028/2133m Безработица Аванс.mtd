@@ -1,0 +1,25 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 20/12/2005 14:12:13
+'= Автор  : admin
+'= Код    : 2130 Безработица
+'= Метод  : Безработица Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		.Tariff = .DependsW.Sum
+		CalcSum = .Tariff * .Sum2 / 100
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Sum2 = 0.5	' 0.5% 		Безработица
+		End If
+	End With
+End Sub

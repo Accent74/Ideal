@@ -1,0 +1,37 @@
+'-----------
+'	Идеал 039
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Dim oCode
+
+Sub Main(Updater)
+
+	UpdateCodeScript "091а", "091a Индексация (автомат.).mtd", Updater
+	UpdateCodeScript "0430w", "0430w Больничные по беременности.mtd", Updater
+	UpdateCodeScript "0440w", "0440w Больничные по уходу за ребёнком (CC).mtd", Updater
+	UpdateCodeScript "0530m", "0530m Компенсация отпускных (вручную).mtd", Updater
+	UpdateCodeScript "0117-01", "0117-01 Начислен аванс.mtd", Updater
+	UpdateCodeScript "0251w", "0251w За совмещение.mtd", Updater
+	UpdateCodeScript "0310р", "0310p Дополнительные начисления.mtd", Updater
+	UpdateCodeScript "0320a", "0320a Премия Сдельная (вручную).mtd", Updater
+	UpdateCodeScript "0420п", "0420п Больничные соцстрах.mtd", Updater
+	UpdateCodeScript "0450w", "0450w Больничные по травме.mtd", Updater
+
+	UpdateCodeScript WorkArea.GetSysCodeID("&ОПП"), "Общие подпрограммы.mtd", Updater
+	updater.refresh
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "039.htm"
+
+End Sub
+
+'----
+'
+'----

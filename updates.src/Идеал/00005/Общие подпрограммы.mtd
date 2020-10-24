@@ -1,0 +1,78 @@
+'==============================================
+'	И Д Е А Л
+'	0005
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : "Импакт"
+'==============================================
+'= Глобальный модуль
+'= Автоматически связывается со всеми методами
+'==============================================
+Sub Global_SetHours(ByRef Tr, b1, b2, dat)	
+	If Not b1 And Not b2 Then Exit Sub
+	With Tr
+		If .Agent.Type <> 3 Then Exit Sub
+ 		Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+		If tt Is Nothing Then Exit Sub
+		If b1 Then .Hours = tt.Hours(dat.firstday)
+		If b2 Then .GHours = tt.Hours(dat.firstday)
+	End With
+End Sub
+
+'==============================================
+Sub Global_SetDays(ByRef Tr, b1, b2, dat)
+	If Not b1 And Not b2 Then Exit Sub
+	With Tr
+		If .Agent.Type <> 3 Then Exit Sub
+ 		Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+		If tt Is Nothing Then Exit Sub
+		If b1 Then .Days = tt.Days(dat.firstday)
+		If b2 Then .GDays = tt.Days(dat.firstday)
+	End With
+End Sub
+
+'==============================================
+Sub SetDb(ByRef Tr)
+	With Tr
+		If .Agent.Prop(PROP_DB) > 0 Then
+			.long1 = .Agent.Prop(PROP_DB)
+		ElseIf .orgid > 0 Then
+			.long1 = workarea.agent(.orgID).params(PRM_DB).value2
+		Else
+			.long1 = workarea.agent(.AgID).parent.params(PRM_DB).value2
+		End If
+	End With
+End Sub
+
+'==============================================
+Function GetSumP(c) ' сумма положительных
+	Dim i
+	Dim cy
+	cy = 0
+	For i = 1 To c.Count
+		With c.Item(i)
+			If .Code.Type = 101 Then
+				cy = cy + .Sum
+			End If
+		End With
+	Next
+	GetSumP = cy
+End Function
+
+'==============================================
+' Результат - сумма по указанному коду для корреспондента в текущем рабочем периоде
+' Используется в Подоходном
+Function GetSumByCode(agID, codeID)
+	Dim rez
+	rez = 0
+	Dim rs
+	Set rs = App.WorkArea.DAODataBase.OpenRecordset( _
+		"SELECT JP_SUM FROM P_JOURNAL WHERE JP_DONE = 1 " & _
+			"And AG_ID = " & agID & _
+			" AND W_PERIOD = " & WorkArea.Period.ID & _
+			" AND MTC_ID = " & codeID )
+	If Not rs.eof	Then _
+		rez = rs.fields("JP_SUM")		
+	GetSumByCode = rez
+End Function

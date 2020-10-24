@@ -1,0 +1,2 @@
+SELECT DepPdn.*, SumPdn.*
+FROM DepPdn INNER JOIN SumPdn ON (DepPdn.AG_ID = SumPdn.AG_ID) AND (DepPdn.W_PERIOD = SumPdn.W_PERIOD);

@@ -1,0 +1,83 @@
+'-----------
+'	Идеал 049
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatemethod workarea.GetCodeID("2130п"), "2130п Безработица.mtd", updater
+	If Not Updater.fail Then updatetables updater
+
+	If App.AppType = "OLEDB" Then RunScript updater
+
+	updater.refresh
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "049.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Устанвка обновлений"
+	End If
+End Sub
+'----
+'
+'----
+Sub RunScript(updater)
+	Dim RD, msgTxt
+
+	msgTxt = "Невозможно выполнить процедуру "
+
+	Set RD = CreateLibObject("Redirect")
+
+	If Not RunSQLFile2(RD.GetFullPath("Num2Pos.sql"), updater) Then
+		updater.writelog msgTxt & "Num2Pos.sql"
+		updater.fail = True
+	Else
+		If Not RunSQLFile2(RD.GetFullPath("ideal_1DF.sql"), updater) Then
+			updater.writelog msgTxt & "ideal_1DF.sql"
+			updater.fail = True
+		End If
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Октябрь 2009", updater
+	SetUTFieldValue UTableID, fMonth, "Ноябрь 2009", updater
+	SetUTFieldValue UTableID, fMonth, "Декабрь 2009", updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+'----
+'
+'----
+

@@ -1,0 +1,80 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=Windows-1251"> 
+<link rel="stylesheet" type="text/css" href="dialog.css">
+<title>Перерасчет подоходного налога</title>
+<script>
+
+var dialogArgument = null;
+var tm = null
+
+function on_load()
+{
+  tm = dialogArgument;
+  if (tm == null)
+    return;
+  caption.innerHTML = tm.Code.Name + ' (' + tm.Code.Code + ')';
+  ag_name.innerHTML = tm.ValueAsString('Agent');
+  for (var i=1; true; i++) {
+    var x = "c_period" + i;
+    var e = document.getElementById(x);
+    if (e != null)
+	  e.innerHTML =  tm.ValueAsString('CPeriod');   
+	else
+	  break;
+  }
+  for (i=1; true; i++) {
+    var x = "w_period" + i;
+    var e = document.getElementById(x);
+    if (e != null)
+	  e.innerHTML =  tm.ValueAsString('WPeriod');   
+	else
+	  break;
+  }
+  in_tariff.innerHTML = tm.ValueAsString('Tariff');
+  in_sum1.innerHTML = tm.ValueAsString('Sum1');
+  in_sum2.innerHTML = tm.ValueAsString('Sum2');
+  in_sum.innerHTML = tm.ValueAsString('Sum');
+}
+
+function onok()
+{
+}
+
+
+</script>
+</head>
+<body topmargin=10 bottommargin=10 bgColor=GhostWhite onload="on_load()" >
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr height="1"><td>
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr>
+    <td class=ActiveTab noWrap width="1"><div id=caption class="ActiveDiv">Пенсионный&nbsp;фонд</div></td>
+    <td class=PaddingTab nowrap width="*">&nbsp;</td>
+</tr>    
+</table>    
+</td></tr>
+<tr>
+<td vAlign=top class="FR">
+<table id="common_props" cellspacing=0 cellpadding=3 border=0 width="100%">
+  <tr><td class="TTH" colspan=2>Общие данные</td></tr>
+  <tr><td class="TCH">Сотрудник:</td><td  class="TCV" id='ag_name'>&nbsp;</td></tr>
+  <tr><td class="TCH">Период:</td><td  class="TCV" id='c_period1'>&nbsp;</td></tr>
+  <tr><td class="TCH">Перерасчет за:</td><td  class="TCV" id='w_period1'>&nbsp;</td></tr>
+  <tr><td colspan=2 style="font-size:1pt">&nbsp;</td></tr>
+  <tr id=baserow><td class="TTH" colspan=2>Перерасчет</td></tr>
+  <tr><td class="TCH">Общий доход:</td><td class="TCV" align=right id='in_tariff'>&nbsp;</td></tr>
+  <tr><td class="TCH">Общая сумма налога:</td><td class="TCV" align=right id='in_sum1'>&nbsp;</td></tr>
+  <tr><td class="TCH">Уже удержано:</td><td class="TCV" align=right id='in_sum2'>&nbsp;</td></tr>
+  <tr><td class="TCH"><b>Доначислено:</b></td><td class="TCV" align=right style="background-color:moccasin;" id='in_sum'>&nbsp;</td></tr>
+</table>
+</td>
+</tr>
+<tr height=1>
+  <td align=right style="padding-top:10px">
+    <input class="BTN" id="IDOK" type=button value="Закрыть" size=52 onclick="onok()">
+  </td>
+</tr>
+</table>
+</body>
+</html>

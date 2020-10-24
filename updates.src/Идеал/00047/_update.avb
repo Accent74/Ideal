@@ -1,0 +1,96 @@
+'-----------
+'	Идеал 047
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddAgProp Updater
+	AddMCProp Updater
+	updater.refresh
+
+	If Not updater.fail Then ShowWhatsNew "WhatNewIdeal.chm", "047.htm"
+End Sub
+'----
+'
+'----
+Sub AddMCProp(Updater)
+	Dim UTableID, fMonth, fValue
+
+	UTableID = Workarea.GetSysUTableID("ДРП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом ДРП (Дополнительные реквизиты предприятия)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Параметр", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Значение", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Карточный бранч РП"
+	SetUTFieldValue UTableID, fMonth, "Код зарплатного проекта"
+	SetUTFieldValue UTableID, fValue, " "
+	SetUTFieldValue UTableID, fValue, " "
+
+End Sub
+'----
+'
+'----
+Sub AddAgProp(updater)
+	Dim NewAg
+
+	Set NewAg = findAgent(Workarea.Agents)
+
+	If NewAg.Prop("Номер карточки") = "" Then
+
+		If Not AddAgProps("Коды и признаки", "Номер карточки", 3, 8) Then
+			updater.writelog "Невозможно добавить свойство сотруднику"
+			Updater.Fail = True
+		End If
+	End If
+
+End Sub
+
+'----
+'
+'----
+Function findAgent(Ags)
+	Dim i
+	Dim Ag
+
+	Set findAgent = Nothing
+
+	For i = 1 To Ags.Count
+		With Ags.Item(i)
+			If .Type = 3 Then
+				Set findAgent = Ags.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then 
+				Set Ag = findAgent(.Children)
+
+				If Not Ag Is Nothing Then 
+					Set findAgent = Ag
+					Exit Function
+				End If
+
+			End If
+		End With
+	Next
+	
+
+End Function
+'----
+'
+'----

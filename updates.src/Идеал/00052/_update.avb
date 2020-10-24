@@ -1,0 +1,46 @@
+'-----------
+'	Идеал 052
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim UTableID, fCode, fValue
+		
+	UTableID = Workarea.GetSysUTableID("КОД")
+
+	If UTableID = 0 Then
+		updater.writelog "Нет таблицы с системным кодом КОД"
+		updater.fail = True
+	Else
+		fCode = GetUTFieldIDByName2(UTableID, "Наименование", updater)
+		If Not updater.fail Then 
+			fValue = GetUTFieldIDByName2(UTableID, "Значение", updater)
+		End If
+
+		If Not updater.fail Then
+			SetUTFieldValue UTableID, fCode, "Код Пенсионного Фонда", updater
+		End If
+
+		If Not updater.fail Then 
+			SetUTFieldValue UTableID, fValue, "000", updater
+		End If
+	End If
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "052.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+End Sub
+'----
+'
+'----

@@ -1,0 +1,296 @@
+Option Explicit
+
+'---
+'
+'---
+Dim Acc
+Dim AgProps
+
+Main
+
+Sub main
+
+	Set Acc = GetAccent()
+	Set AgProps = CreateObject("Scripting.Dictionary")
+
+	If Not Acc Is Nothing Then
+		DoImport Acc
+		Acc.Application.Quit
+		Set Acc = Nothing
+	Else
+		MsgBox "Акцент не обнаружен", vbCritical, "Ошибка"
+	End If
+End Sub
+'---
+'
+'---
+Sub DoImport(Acc)
+	Dim dbFileName
+	Dim dlgFileName
+	Dim MyCoVatNo, TblID, IsDBOpen
+	Dim AgRoot, AgNewRoot
+
+	Set dlgFileName = CreateLibObject("FileDialog")
+	dlgFileName.Caption = "Выберите базу данных"
+	dlgFileName.filemustexists = True
+
+	If dlgFileName.ShowOpen = vbOK Then
+		If token(acc.application.version, 1, ".") = "6" Then
+			IsDBOpen = acc.OpenDataBase(dlgFileName.PathName)
+		Else
+			IsDBOpen = acc.OpenDataBase2(dlgFileName.PathName)
+		End If
+
+		If IsDBOpen Then
+			TblID = workarea.GetSysUTableID("КОД")
+			Set AgNewRoot = Nothing
+
+			If TblID <> 0 Then
+				MyCoVatNo = WorkArea.UTable(TblID).GetValue(1,"Код по ЕДРПОУ",2)
+					If MyCoVatNo <> 0 Then
+						Set AgNewRoot = IsAgExists(MyCoVatNo, False)
+					End If
+			End If
+
+			If AgNewRoot Is Nothing Then 
+				Set AgNewRoot = Workarea.Agents
+			Else
+				Set AgNewRoot = AgNewRoot.Children
+			End If
+
+			Set AgRoot = Acc.MyCompany.Children
+			DoImportAgent acc, AgNewRoot, AgRoot
+			MsgBox "Импорт окончен", vbInformation, "Внимание"
+		Else
+			MsgBox "Ошибка открытия базы данных" & vbCrLf & dlgFileName.PathName, vbCritical, "Ошибка"
+		End If
+	Else
+		MsgBox "Не указана база данных для импорта", vbInformation, "Внимание"
+	End If
+End Sub
+'---
+'
+'---
+Function GetAccent()
+	Dim Acc, i
+	Dim AccName
+
+	AccName = Array("6", "6s", "7", "7s", "74", "74s")
+
+	For i = 0 To UBound(AccName)
+		On Error Resume Next
+		Set Acc = CreateObject("Accent" & AccName(i) & ".Workarea")
+
+		If Err.Number = 0 Then
+			Set GetAccent = Acc
+			Exit Function
+		Else
+			Err.Clear
+		End If
+	Next
+
+	Set GetAccent = Nothing
+
+End Function
+'---
+'
+'---
+Sub DoImportAgent(acc, AgNewRoot, AgRoot)
+	Dim i, Ag, NewAg
+
+	For i = 1 To AgRoot.Count
+		Set Ag = AgRoot.Item(i)
+
+		If Ag.Type = 3 Then
+			Set NewAg = IsAgExists(Ag.VatNo, True)
+			If NewAg Is Nothing Then
+				Set NewAg = AgNewRoot.Create(3, Ag.Name)
+			End If
+
+			SetProps Ag, NewAg
+			NewAg.Save
+		ElseIf Ag.Type = 2 Or Ag.Type = 0 Then
+			Set NewAg = IsAgExists(Ag.Code, False)
+
+			If NewAg Is Nothing Then
+				Set NewAg = AgNewRoot.Create(Ag.Type, Ag.Name)
+				NewAg.Code = Ag.Code	
+				Ag.Save
+			End If
+			
+			DoImportAgent acc, NewAg.Children, Ag.Children
+		End If
+	Next
+
+End Sub
+'---
+'
+'---
+Function IsAgExists(AgVatNo, Flag)
+	Dim rs
+
+	If Flag Then
+		Set Rs = Workarea.DAODataBase.OpenRecordSet("Select Ag_ID from Agents where ag_vatno='" & AgVatNo & "'")
+	Else
+		Set Rs = Workarea.DAODataBase.OpenRecordSet("Select Ag_ID from Agents where ag_code='" & AgVatNo & "'")
+	End If
+
+	If Rs.eof Then
+		Set IsAgExists = Nothing
+	Else
+		Set IsAgExists = Workarea.Agent(Rs.Fields(0).Value)
+	End If
+
+End Function
+'---
+'
+'---
+Sub 	SetProps(Ag, NewAg)
+	Dim PassNo, AgFacts, EnID, enName, PassDate
+
+	If AgProps.Count = 0 Then
+		LoadAgProps NewAg
+	End If
+
+	Set AgFacts = Ag.Facts(Now)
+
+	With NewAg.Properties
+		.Item(AgProps("ИНН")).SetValue									Ag.VatNo
+		.Item(AgProps("Табельный номер")).SetValue 				Ag.TabNo
+		.Item(AgProps("Фамилия")).SetValue 							Trim(Token(Ag.Name, 1, " "))
+		.Item(AgProps("Имя")).SetValue 									Trim(Token(Ag.Name, 2, " "))
+		.Item(AgProps("Отчество")).SetValue 						Trim(Token(Ag.Name, 3, " "))
+
+		If Ag.Params.Exists("Пол") Then
+			.Item(AgProps("Пол")).SetValue 									iif(Ag.Params("Пол").Value2 = "М", 0, 1)
+		End If
+
+		.Item(AgProps("Дата рождения")).SetValue 				Ag.Params("Дата рождения").Value2
+		.Item(AgProps("Дата выхoда на пенсию")).SetValue	AgFacts.Item("Пенсионер").ActualDate
+		.Item(AgProps("Дата приема")).SetValue						Ag.DateIn
+		.Item(AgProps("Дата увольнения")).SetValue				Ag.DateOut
+		.Item(AgProps("Признак дохода")).SetValue				GetEnumID(AgFacts.Item("Признак дохода").Value2, "Признак дохода")
+		.Item(AgProps("Признак льготы")).SetValue				GetEnumID(AgFacts.Item("Признак льготы").Value2, "Признак льготы")
+
+		.Item(AgProps("Адрес")).SetValue								Ag.Address
+		.Item(AgProps("Телефон")).SetValue							Ag.Phone
+		.Item(AgProps("Профсоюз")).SetValue							iif(AgFacts.Item("Расчитывать профсоюз").Value2 = "Да", 1, 0)
+
+		If Ag.Params.Exists("№ картсчета") Then
+			.Item(AgProps("Номер карточки")).SetValue				Ag.Params("№ картсчета").Value2
+		End If
+
+		.Item(AgProps("Процент алиментов")).SetValue			AgFacts.Item("% алиментов").Value2
+		.Item(AgProps("График")).SetValue								1	'	основной график
+		.Item(AgProps("Инвалид")).SetValue							AgFacts.Item("Инвалидность").Value2
+
+		AddFactValues .Item(AgProps("Количество детей")), AgFacts.Item("К-во детей"), False
+		AddFactValues .Item(AgProps("Оклад")), AgFacts.Item("Оклад"), False
+		AddFactValues .Item(AgProps("Должность")), AgFacts.Item("Должность"), False
+
+		If AgFacts.exists("Cпецстаж") Then
+			AddFactValues .Item(AgProps("Спецстаж")), AgFacts.Item("Cпецстаж"), True
+		End If
+
+		PassNo = Split(Ag.Passport, " ")	
+		If UBound(PassNo) > 2 Then
+			.Item(AgProps("Серия и № паспорта")).SetValue			Trim(PassNo(0)) & " " & Trim(PassNo(1)) 
+			.Item(AgProps("Кем выдан")).SetValue						MyJoin(PassNo, 2, UBound(PassNo) - 1)
+			PassDate = Trim(PassNo(UBound(PassNo)))
+
+			If IsDate(PassDate) Then
+				.Item(AgProps("Дата выдачи")).SetValue CDate(PassDate)
+			End If
+
+		End If
+
+		EnID = AgFacts.Item("Характер работ").Value2
+
+		If EnID <> 0 Then
+			enName = acc.enum("Характер работ").ItemNameID(EnID)
+		Else
+			enName = ""
+		End If
+
+		Select Case enName
+			Case "Гражданско-правовой договор", _
+					"Гражданско-правовой договор (стор.)", _
+					"Трудовое соглашение"
+				.Item(AgProps("Трудовой договор")).SetValue 1
+			Case "По совместительству"
+				.Item(AgProps("Совместитель")).SetValue 1
+		End Select 
+	End With
+End Sub
+'---
+'
+'---
+Sub AddFactValues(PropItem, AgFact, Logic)
+	Dim i, Hist
+
+	Hist = AgFact.History
+
+	For i = 0 To UBound(Hist, 2)
+		If Not IsNull(Hist(1, i)) Then
+			If Logic Then
+				PropItem.SetValue iif(Hist(1, i) = "Да", 0, 1), Hist(0, i)
+			Else
+				PropItem.SetValue Hist(1, i), Hist(0, i)
+			End If
+		End If
+	Next
+
+End Sub
+'---
+'
+'---
+Sub LoadAgProps(Ag)
+	Dim i
+
+	With Ag.Properties
+		For i = 1 To .Count
+			With .Item(i)	
+				If Not AgProps.Exists(.Name) Then
+					AgProps.Add .Name, i
+				End If
+			End With
+		Next
+	End With
+
+End Sub
+'---
+'
+'---
+Function MyJoin(ArrayStr, StartPos, EndPos)
+	Dim i, RetValue
+
+	RetValue = ""
+
+	For i = StartPos To EndPos
+		RetValue = RetValue & ArrayStr(i) & " "
+	Next
+	
+	MyJoin = Trim(RetValue)
+End Function
+'---
+'
+'---
+Function GetEnumID(EnumValue, EnumName)
+	Dim i
+
+	With workarea.enum(EnumName)
+		For i = 1 To .Count
+			If .ItemName(i) = EnumValue Then
+				GetEnumID = .ItemID(i)
+				Exit Function
+			End If
+		Next		
+
+	End With
+
+	GetEnumID = 0
+
+End Function
+'---
+'
+'---

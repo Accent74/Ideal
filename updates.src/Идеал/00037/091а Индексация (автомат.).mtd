@@ -1,0 +1,31 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 26/09/2006 14:47:01
+'= Автор  : admin
+'= Код    : 091 Индексация
+'= Метод  : Индексация (автомат.)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .DependsW.Sum
+		If .Tariff > .Sum3 Then .Tariff = .Sum3
+		.Sum1 = .Tariff * .Sum2 / 100.0
+		.Sum = .Sum1
+	End With
+End Sub
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim Ag
+
+	With Tr
+		.Sum2 = CalcKIndex(.Agent.Prop("Базовый месяц для индексации"), .WPeriod.FirstDay)
+		.Sum3 = Workarea.UTable(USRTBL_LGT).GetValue(1, USRTBL_MINLIF, 2)	
+		If .OrgID <> 0 Then
+			Set Ag = workarea.agent(.OrgID)
+			If Ag.Params.Exists(PROP_DB) Then .DbCode2 = Ag.Params(PROP_DB).Value2
+		End If
+	End With
+End Sub
+

@@ -1,0 +1,40 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 10:46:39
+'= Автор  : admin
+'= Код    : 2410 ЕСВ
+'= Метод  : ЕСВ базовый
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum
+
+	With Tr
+		If Not .Long1 Then
+			' если не трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff < .Sum2 Then
+				BaseSum = .Tariff
+			Else
+				BaseSum = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(BaseSum * .Sum3, 2) - .DependsW.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.036
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	End With
+End Sub
+

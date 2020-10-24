@@ -1,0 +1,356 @@
+'-----------
+'	Идеал 030
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	If AddNewTable(Updater) Then
+		If AddNewCode("091а", "Индексация (автомат.)", 200, "091", "091а Индексация (автомат.).mtd", Updater) Then
+
+				Add1DFCodes(updater)
+
+				If WorkArea.GetCodeID("3010п") <> 0 Then
+					WorkArea.Code(WorkArea.GetCodeID("3010п")).SetScriptFromFile "3010п Выплата зарплаты.mtd"
+					updater.refresh
+				Else
+					updater.writelog "Не найден метод 3031п"
+				End If
+
+				If AddParam(Workarea.Folders, "Код(ы) начислений/удержаний", vbString) Then
+					updater.writelog "Добавляю свойство сотруднику 'Базовый месяц для индексации'"
+					AddAgProps "Общие", "Базовый месяц для индексации", 3, vbDate
+
+					AddNewRep "Ведомость начислений.ash", "Ведомость начислений"
+					SetupServiceCode "0117", updater
+					SetupServiceCode "0801", updater
+
+					AddForm1DF
+
+					If App.AppType = "DAO" Then
+						AddQueries
+					Else
+						With CreateLibObject( "Redirect" )
+							RunSQLFile .GetFullPath( "Ideal_upgrd_030.sql" ), updater
+						End With
+					End If
+	
+					ShowWhatsNew "WhatNewIdeal.chm", "030.htm"
+				End If
+		End If
+	End If
+
+End Sub
+'-------------------
+'
+'-------------------
+Function Add1DFCodes(updater) 
+	Dim Fld
+	Dim aCodes
+	Dim aDeps
+	Dim i, cCode, cCodeName, j
+	Dim CodeID
+	Dim NewCode
+	Dim aCodeDeps
+
+	aCodes = Array("0028:1ДФ(начисления)","0029:1ДФ (налоги)","0030:1ДФ (выплаты)")
+	aDeps = Array(	"0110 0115 0210 0220 0230 0240 0250 0260 270 0310 320 0410 0420 0430 0440 0450 0510 0520 0530 0540 0550 0600 0610 0620 0630 091 095 096", _
+							"2100", "2100а", _
+							"0110 0115 0210 0220 0230 0240 0250 0260 270 0310 320 0410 0420 0430 0440 0450 0510 0520 0530 0540 0550 0600 0610 0620 0630 091 095 096")
+
+	Set Fld = FindFolder("Отчеты", WorkArea.Codes, False)
+
+	For i = 0 To UBound(aCodes)
+		cCode = token(aCodes(i), 1, ":")
+		cCodeName = token(aCodes(i), 2, ":")
+		CodeID = WorkArea.GetCodeID(cCode)
+
+		If CodeID = 0 Then
+			updater.writelog "Добавляю код " & cCode
+			Set NewCode = Fld.Create(103, cCode, cCodeName)
+		Else
+			Set NewCode = WorkArea.Code(CodeID)
+			If NewCode.Name <> cCodeName Then NewCode.Name = cCodeName
+		End If
+			
+		aCodeDeps = Split(aDeps(i), " ")
+	
+		For j = 0 To UBound(aCodeDeps)
+			CodeID = WorkArea.GetCodeID(aCodeDeps(j))
+			If CodeID <> 0 Then
+				NewCode.AddDependency CodeID
+				updater.writelog "Добавлена зависимость в код " & cCode & " от " & aCodeDeps(j)
+			Else
+				updater.writelog "Код " & aCodeDeps(j) & " не обнаружен. Зависимость для кода " & cCode & " не установлена."
+			End If
+		Next
+	Next
+
+End Function		
+
+'-------------------
+'
+'-------------------
+Sub AddQueries
+	Dim QdDict
+
+	If App.AppType <> "DAO" Then Exit Sub
+
+	Set QdDict = LoadQD()
+
+	AddQuery QdDict, "1DF2", _
+								"SELECT [1DR].AG_ID, [1DR].AG_NAME, Sum([1DR].Sum3a) AS [Sum-Sum3a], Sum([1DR].Sum3) AS [Sum-Sum3], Sum([1DR].Sum4a) AS [Sum-Sum4a], Sum([1DR].Sum4) AS [Sum-Sum4], [1DR].InType, Max(IIf([lgtype]=1,1,0)) AS lgt_1, Max(IIf([lgtype]=2,1,0)) AS lgt_2, Max(IIf([lgtype]=3,1,0)) AS lgt_3, Max(IIf([lgtype]=4,1,0)) AS lgt_4 " & _
+								"FROM 1DR " & _
+								"GROUP BY [1DR].AG_ID, [1DR].AG_NAME, [1DR].InType " & _
+								"ORDER BY [1DR].AG_NAME, [1DR].AG_ID;"
+
+	AddQuery QdDict, "1DR", _
+								"PARAMETERS [Year] Long, mStart Long, mEnd Long, MTD_IN_ID Long, MTD_OUT_ID Long, MTD_TAX_ID Long, lgtCode Long; " & _
+								"Select P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month] AS Period, Sum(P_JOURNAL.JP_SUM) AS [Sum3a], 0 as Sum3, 0 as Sum4a, 0 as Sum4, 1 as InType, 0 as lgType " & _
+								"FROM P_PERIOD Right Join (AGENTS Right Join (P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+								"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_IN_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd])) " & _
+								"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month] " & _
+								"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0)) " & _
+								"ORDER BY AGENTS.AG_NAME " & _
+								"union all " & _
+								"Select P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month] AS Period, 0 as Sum3a, Sum(P_JOURNAL.JP_SUM) AS [Sum3], 0 as Sum4a, 0 as Sum4, 1 as InType, 0 as lgType " & _
+								"FROM P_PERIOD Right Join (AGENTS Right Join (P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+								"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_OUT_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd])) " & _
+								"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month] " & _
+								"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0)) " & _
+								"ORDER BY AGENTS.AG_NAME " & _
+								"union all " & _
+								"Select P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month] AS Period, 0 as Sum3a, 0 AS [Sum3], Sum(P_JOURNAL.JP_SUM) as Sum4a, Sum(P_JOURNAL.JP_SUM) as Sum4, iif(IsNull(JP_T1),1, CLng(JP_T1)) as InType, 0 as lgType " & _
+								"FROM P_PERIOD Right Join (AGENTS Right Join (P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+								"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_TAX_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd])) " & _
+								"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month], JP_T1 " & _
+								"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0)) " & _
+								"ORDER BY AGENTS.AG_NAME " & _
+								"UNION ALL Select P_JOURNAL.AG_ID, AGENTS.AG_NAME, PP_YEAR*100+PP_MONTH AS Period, 0 AS Sum3a, 0 AS Sum3, 0 AS Sum4a, 0 AS Sum4, 1 AS InType,first(iif(IsNull(P_JOURNAL.JP_T3),0, CLng(P_JOURNAL.JP_T3))) AS lgType " & _
+								"FROM P_PERIOD Left Join (AGENTS Right Join P_JOURNAL On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+								"WHERE (((P_JOURNAL.JP_DONE)=1) And ((P_JOURNAL.MTC_ID)=[lgtCode]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd]) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_JOURNAL.JP_SUM)<>0)) " & _
+								"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, PP_YEAR*100+PP_MONTH, P_JOURNAL.JP_T3 " & _
+								"ORDER BY AGENTS.AG_NAME;"
+End Sub
+
+'-------------------
+'
+'-------------------
+Sub AddForm1DF
+	Dim i
+	Dim FrmID
+	Dim Frm
+	Dim Fld
+
+	FrmID = 0
+
+	With WorkArea.ProjectItems(1)
+		For i = 1 To .Count
+			With .Item(i)
+				If LCase(.filename) = "payroll_1df2.afm" Then
+					FrmID = .ID
+					Exit For
+				End If
+			End With
+		Next
+
+		If FrmID = 0 Then
+			Set Frm = .Create("1ДФ (новая)", "payroll_1df2.afm")
+			FrmID = Frm.ID
+		End If
+	End With
+
+	If Not FindFormInFolder(WorkArea.Folders, FrmID) Then
+		Set Fld = FindFolder("Прочее", WorkArea.Folders, True)
+		With Fld.Create("1ДФ (после 1.11.2006)")
+			.FormID = FrmID
+			.Save
+		End With
+	End If
+
+End Sub
+'-------------------
+'
+'-------------------
+Sub SetupServiceCode(cCode, updater)
+	Dim CodeID
+
+	CodeID = Workarea.GetCodeID(cCode)
+
+	If CodeID = 0 Then
+		updater.writelog "Отсутствует код " & cCode
+	Else
+		With Workarea.Code(CodeID)
+			.IsService = True
+			.Save
+		End With
+		updater.writelog "Код " & cCode & " установлен как служебный."
+	End If
+
+End Sub
+'-------------------
+'
+'-------------------
+Sub AddNewRep(RepFile, RepName)
+	Dim Rs
+
+	Set Rs = GetRS("Select * From reports")
+
+	Rs.AddNew
+	rs.Fields("Rep_x").Value = 1
+	Rs.Fields("Rep_x_id").Value = 0
+	Rs.Fields("Rep_Name").Value = RepName
+	Rs.Fields("Rep_Type").Value = 12
+	Rs.Fields("Rep_SubType").Value = 0
+	Rs.Fields("Rep_Ps1").Value = RepFile
+	Rs.Fields("App_Type").Value = 80
+	Rs.Update
+	Rs.Close
+
+End Sub
+'-------
+'
+'-------
+Function AddNewCode(Code, CodeName, CodeType, CodeRoot, CodeFile, Updater)
+	Dim NewCode
+
+	Updater.writelog "Добавляю код " & Code & " " & CodeName
+
+	If AddMethod(Workarea.Code(WorkArea.GetCodeID(CodeRoot)).Children, Code, CodeName, CodeType, 2, NewCode) Then
+		NewCode.SetScriptFromFile CodeFile
+		AddNewCode = True
+		updater.refresh
+	Else
+		Updater.writelog "Ошибка добавления кода."
+		Updater.fail = True
+		AddNewCode = False
+	End If
+
+End Function
+'-------
+'
+'-------
+Function AddNewTable(Updater)
+	Dim UTableID
+	Dim UT
+	Dim fMonth, fValue
+
+	updater.writelog "Добавляю Коэффициенты индексации заработной платы"
+
+	If Not IsUTableExists("КИЗП") Then
+		UTableID = AddUTable("Коэффициенты индексации заработной платы", "КИЗП")
+		
+		If UTableID <> 0 Then
+			fMonth = AddUTField(UTableID, "Месяц/год", vbString)
+			fValue = AddUTField(UTableID, "Процент", vbCurrency)
+		Else
+			updater.writelog "Ошибка добавления пользовательской таблицы."
+			updater.fail = True
+			AddNewTable = False
+		End If
+
+		SetUTFieldValue UTableID, fMonth, "Февраль 2003"
+		SetUTFieldValue UTableID, fMonth, "Март 2003"
+		SetUTFieldValue UTableID, fMonth, "Апрель 2003"
+		SetUTFieldValue UTableID, fMonth, "Май 2003"
+		SetUTFieldValue UTableID, fMonth, "Июнь 2003"
+		SetUTFieldValue UTableID, fMonth, "Июль 2003"
+		SetUTFieldValue UTableID, fMonth, "Август 2003"
+		SetUTFieldValue UTableID, fMonth, "Сентябрь 2003"
+		SetUTFieldValue UTableID, fMonth, "Октябрь 2003"
+		SetUTFieldValue UTableID, fMonth, "Ноябрь 2003"
+		SetUTFieldValue UTableID, fMonth, "Декабрь 2003"
+		SetUTFieldValue UTableID, fMonth, "Январь 2004"
+		SetUTFieldValue UTableID, fMonth, "Февраль 2004"
+		SetUTFieldValue UTableID, fMonth, "Март 2004"
+		SetUTFieldValue UTableID, fMonth, "Апрель 2004"
+		SetUTFieldValue UTableID, fMonth, "Май 2004"
+		SetUTFieldValue UTableID, fMonth, "Июнь  2004"
+		SetUTFieldValue UTableID, fMonth, "Июль  2004"
+		SetUTFieldValue UTableID, fMonth, "Август 2004"
+		SetUTFieldValue UTableID, fMonth, "Сентябрь 2004"
+		SetUTFieldValue UTableID, fMonth, "Октябрь 2004"
+		SetUTFieldValue UTableID, fMonth, "Ноябрь 2004"
+		SetUTFieldValue UTableID, fMonth, "Декабрь 2004"
+		SetUTFieldValue UTableID, fMonth, "Январь 2005"
+		SetUTFieldValue UTableID, fMonth, "Февраль 2005"
+		SetUTFieldValue UTableID, fMonth, "Март 2005"
+		SetUTFieldValue UTableID, fMonth, "Апрель 2005"
+		SetUTFieldValue UTableID, fMonth, "Май 2005"
+		SetUTFieldValue UTableID, fMonth, "Июнь 2005"
+		SetUTFieldValue UTableID, fMonth, "Июль 2005"
+		SetUTFieldValue UTableID, fMonth, "Август 2005"
+		SetUTFieldValue UTableID, fMonth, "Сентябрь 2005"
+		SetUTFieldValue UTableID, fMonth, "Октябрь 2005"
+		SetUTFieldValue UTableID, fMonth, "Ноябрь 2005"
+		SetUTFieldValue UTableID, fMonth, "Декабрь 2005"
+		SetUTFieldValue UTableID, fMonth, "Январь 2006"
+		SetUTFieldValue UTableID, fMonth, "Февраль 2006"
+		SetUTFieldValue UTableID, fMonth, "Март 2006"
+		SetUTFieldValue UTableID, fMonth, "Апрель 2006"
+		SetUTFieldValue UTableID, fMonth, "Май 2006"
+		SetUTFieldValue UTableID, fMonth, "Июнь 2006"
+		SetUTFieldValue UTableID, fMonth, "Июль 2006"
+		SetUTFieldValue UTableID, fMonth, "Август 2006"
+		SetUTFieldValue UTableID, fMonth, "Сентябрь 2006"
+		SetUTFieldValue UTableID, fMonth, "Октябрь 2006"
+		SetUTFieldValue UTableID, fMonth, "Ноябрь 2006"
+		SetUTFieldValue UTableID, fMonth, "Декабрь 2006"
+
+		SetUTFieldValue UTableID, fValue, CCur(101.10)
+		SetUTFieldValue UTableID, fValue, CCur(0.00)
+		SetUTFieldValue UTableID, fValue, CCur(100.70)
+		SetUTFieldValue UTableID, fValue, CCur(100.00)
+		SetUTFieldValue UTableID, fValue, CCur(100.10)
+		SetUTFieldValue UTableID, fValue, CCur(99.90)
+		SetUTFieldValue UTableID, fValue, CCur(98.30)
+		SetUTFieldValue UTableID, fValue, CCur(100.60)
+		SetUTFieldValue UTableID, fValue, CCur(101.30)
+		SetUTFieldValue UTableID, fValue, CCur(101.90)
+		SetUTFieldValue UTableID, fValue, CCur(101.50)
+		SetUTFieldValue UTableID, fValue, CCur(101.40)
+		SetUTFieldValue UTableID, fValue, CCur(100.40)
+		SetUTFieldValue UTableID, fValue, CCur(100.40)
+		SetUTFieldValue UTableID, fValue, CCur(100.70)
+		SetUTFieldValue UTableID, fValue, CCur(100.70)
+		SetUTFieldValue UTableID, fValue, CCur(100.70)
+		SetUTFieldValue UTableID, fValue, CCur(100.00)
+		SetUTFieldValue UTableID, fValue, CCur(99.90)
+		SetUTFieldValue UTableID, fValue, CCur(101.30)
+		SetUTFieldValue UTableID, fValue, CCur(102.20)
+		SetUTFieldValue UTableID, fValue, CCur(101.60)
+		SetUTFieldValue UTableID, fValue, CCur(102.40)
+		SetUTFieldValue UTableID, fValue, CCur(101.70)
+		SetUTFieldValue UTableID, fValue, CCur(101.00)
+		SetUTFieldValue UTableID, fValue, CCur(101.60)
+		SetUTFieldValue UTableID, fValue, CCur(100.70)
+		SetUTFieldValue UTableID, fValue, CCur(100.60)
+		SetUTFieldValue UTableID, fValue, CCur(100.60)
+		SetUTFieldValue UTableID, fValue, CCur(100.30)
+		SetUTFieldValue UTableID, fValue, CCur(100.00)
+		SetUTFieldValue UTableID, fValue, CCur(100.40)
+		SetUTFieldValue UTableID, fValue, CCur(100.90)
+		SetUTFieldValue UTableID, fValue, CCur(101.20)
+		SetUTFieldValue UTableID, fValue, CCur(100.90)
+		SetUTFieldValue UTableID, fValue, CCur(101.20)
+		SetUTFieldValue UTableID, fValue, CCur(101.80)
+		SetUTFieldValue UTableID, fValue, CCur(99.70)
+		SetUTFieldValue UTableID, fValue, CCur(99.60)
+		SetUTFieldValue UTableID, fValue, CCur(100.50)
+		SetUTFieldValue UTableID, fValue, CCur(100.10)
+		SetUTFieldValue UTableID, fValue, CCur(100.90)
+		SetUTFieldValue UTableID, fValue, CCur(100.00)
+	End If
+
+	AddNewTable = Not updater.fail
+
+End Function
+'-------
+'
+'-------

@@ -1,0 +1,49 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 03/01/2011 12:50:09
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс с 01.01.2011
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .Hours > 0 Then
+			If .Tariff <> 0 Then
+				.Sum = Round2(.Tariff / .GHours * .Hours , 2) 
+			Else
+				.Sum = Round2(.Sum1 * .Hours , 2)
+			End If
+		Else
+			.Sum = Round2(.Tariff / .GDays * .Days , 2) 
+		End If	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .Agent.Prop("Дата приема")>.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+     	          .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+			.Sum1 = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+
+			If .ghours = 0 Then
+			'			Получаем график и факт			
+				Global_SetHours Tr, True, True, .wperiod
+				Global_SetDays Tr, True, True, .wperiod
+			Else
+			'			Получаем график
+				Global_SetHours Tr, False, True, .wperiod
+				Global_SetDays Tr, False, True, .wperiod
+			End If
+
+		End If
+	End With
+
+	SetDb(Tr)
+End Sub
+

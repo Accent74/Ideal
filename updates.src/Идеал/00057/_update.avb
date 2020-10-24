@@ -1,0 +1,135 @@
+'-----------
+'	Идеал 057
+'	модуль обновления 
+'-----------
+
+Option Explicit
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	updatetables updater
+	updater.refresh
+	UpdateMethods updater
+	AddFOTCodes updater	
+	AddReports updater
+	AddAgProps2 "Коды и признаки", "Увеличивать макс. льготный доход", 3, 111, "Да|Нет", updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "057.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fprm, fValue
+	Dim FrmID, FldID, NewFld, Fld
+	Dim RS
+
+	UTableID = Workarea.GetSysUTableID("ПДТ")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом ПДТ (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fprm = GetUTFieldIDByName2(UTableID, "Параметр", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Значение", updater)
+
+	If updater.fail Then Exit Sub
+
+	Set rs = Getrs("select count(*) from ut_VALUES where utf_id=" & fprm & " and utv_string=" & Chr(34) & "Максимальный доход для НДФЛ" & Chr(34))
+
+	If rs.fields(0).value = 0 Then
+		SetUTFieldValue UTableID, fprm, "Максимальный доход для НДФЛ", updater
+		SetUTFieldValue UTableID, fValue, CCur(9410), updater
+	End If
+End Sub
+
+'----
+'
+'----
+Sub AddFOTCodes(updater)
+	Dim RootFolder, NewCode
+
+	If updater.fail Then Exit Sub
+
+	Set RootFolder = FindCodeFolder("ФОТ", Workarea.Codes)
+	
+	CreateFOTCode "2000", "ПФ (33.2%)", 9, RootFolder, updater
+	CreateFOTCode "2000а", "ПФ (33.2%) (аванс)", 9, RootFolder, updater
+	CreateFOTCode "2001", "ПФ (4%)", 10, RootFolder, updater
+	CreateFOTCode "2001а", "ПФ (4%) (аванс)", 10, RootFolder, updater
+	CreateFOTCode "2010", "Фонд безраб. (1.5%)", 8, RootFolder, updater
+	CreateFOTCode "2010а", "Фонд безраб. (1.5%) (аванс)", 8, RootFolder, updater
+	CreateFOTCode "2020", "ФНС (2,42%)", 1, RootFolder, updater
+	CreateFOTCode "2020а", "ФНС(2,42%) (аванс)", 1, RootFolder, updater
+	CreateFOTCode "2021", "ФНС, инвалиды (1.51%)", 2, RootFolder, updater
+	CreateFOTCode "2021а", "ФНС, инвалиды (1.51%) (аванс)", 2, RootFolder, updater
+	CreateFOTCode "2030", "Фонд соцстраха (1.4%)", 0, RootFolder, updater
+	CreateFOTCode "2030а", "Фонд соцтраха (1.4%) (аванс)", 0, RootFolder, updater
+
+	
+	updater.refresh
+
+	CheckDEpends Array("2000", "2001"), _
+							Array("0110","0115","0210","0220","0230","0240","0250","0260",_
+															"0270","0310","0320","0410","0420","0440","0450","0510",_
+															"0520","0530", "0610","0620","0630",_
+															"091","096"), updater
+	CheckDEpends Array("2010", "2030"), _
+							Array("0110","0115","0210","0220","0230","0240","0250","0260",_
+															"0270","0310","0320", "0510",_
+															"0520","0530", "0610","0620","0630",_
+															"091","096"), updater
+	CheckDEpends Array("2020"), _
+							Array("0110","0115","0210","0220","0230","0240","0250","0260",_
+															"0270","0310","0320","0410","0420","0510",_
+															"0520","0530", "0610","0620","0630",_
+															"091","096"), updater
+	CheckDEpends Array("2021"), Array("0110"), updater
+	CheckDEpends Array("2000а", "2001а", "2010а", "2020а", "2021а", "2030а"), Array("0117"), updater
+
+	updater.refresh
+
+End Sub
+'----
+'
+'----
+Sub UpdateMethods(updater)
+	If updater.fail Then Exit Sub
+
+	updatemethod Workarea.GetCodeID("2401"), "2401 НДФЛ.mtd", updater
+	updatemethod Workarea.GetCodeID("2401а"), "2401а НДФЛ (аванс).mtd", updater
+	updater.refresh
+
+End Sub
+'----
+'
+'----
+Sub AddReports(updater)
+	Dim AgID
+
+	AgID = workarea.browse(acAgent,,,, "Выберите корреспондента Моя фирма")
+
+	If AgID = 0 Then
+		updater.fail = True
+		updater.writelog "Ошибка: необходимо указать корреспондента для размещения отчетов"
+	Else
+		AddReport2 "Ведомость начислений 2011", "Ведомость начислений2011.ash", 1, AgID, updater
+		AddReport2 "Ведомость начислений2011 (аванс)", "Ведомость начислений2011_avans.ash", 1, AgID, updater
+		AddReport2 "Расчетная ведомость 2011", "Расчетная ведомость2011.ash", 1, AgID, updater
+	End If
+End Sub

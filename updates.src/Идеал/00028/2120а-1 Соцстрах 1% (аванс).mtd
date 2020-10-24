@@ -1,0 +1,51 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 05/09/2006 13:20:40
+'= Автор  : admin
+'= Код    : 2120а Соцстрах (аванс)
+'= Метод  : Соцстрах 1% (аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum
+	Dim CalcSum
+
+	With Tr
+
+		.Tariff = .DependsW.Sum
+
+		Select Case .String1
+			Case "07"
+				CalcSum = - .LookUp.SumWD	
+			Case Else
+				If .Tariff >= MAX_FOUND_CY Then 
+		       BaseSum = MAX_FOUND_CY
+				Else
+					BaseSum = .Tariff
+		     End If
+		
+				If BaseSum > .Sum2 And .Long1 = False Then
+					CalcSum = BaseSum / 100.0 - .LookUp.SumWD	' 1 %
+				Else
+					CalcSum = 0					' 0.5 %
+				End If
+		End Select
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MINLIF,2)
+			.Long1 = .Agent.Prop(PROP_TRUD)
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+		End If
+	End With
+End Sub
+
+
+

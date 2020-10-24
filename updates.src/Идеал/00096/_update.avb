@@ -1,0 +1,109 @@
+'-----------
+'	Идеал 096
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const CURR_YEAR = 2015
+Const FILE_NAME = "signs_of_income.mtd"
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatescripts updater
+	AddReport2 "Ведомость начислений (старая)", "Ведомость начислений2011 (старая).ash", 1, 1237, updater
+
+	If updater.fail Then
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub updatescripts(updater)
+	Dim SQL, FSO, ScriptFile, RD, ScriptFileName, QD
+
+	If App.AppType = "DAO" Then
+		DropQueryDef "ideal_pay_by_deps"
+		SQL = "PARAMETERS PeriodID Long, MtdID Long, PayTypePropID Long;" & _
+					"Select AGENTS.AG_VATNO, AG_PROPS.PROP_LONG, P_JOURNAL.W_PERIOD, P_PERIOD.PP_MONTH, P_PERIOD.PP_YEAR, Sum(P_JOURNAL.JP_SUM) AS MtdSum, P_JOURNAL.JP_PL3 AS JP_PL3 " & _
+					"FROM P_PERIOD Right Join ((AGENTS Left Join AG_PROPS On AGENTS.AG_ID = AG_PROPS.EL_ID) Right Join (MTD_DEPENDS Left Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+					"GROUP BY AGENTS.AG_VATNO, AG_PROPS.PROP_LONG, P_JOURNAL.W_PERIOD, P_PERIOD.PP_MONTH, P_PERIOD.PP_YEAR, P_JOURNAL.JP_PL3, P_JOURNAL.C_PERIOD, P_JOURNAL.JP_DONE, MTD_DEPENDS.MTD_ID_RIGHT, AG_PROPS.PROP_ID " & _
+					"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0) And ((P_JOURNAL.C_PERIOD)=[PeriodID]) And ((P_JOURNAL.JP_DONE)=1) And ((MTD_DEPENDS.MTD_ID_RIGHT)=[MtdID]) And ((AG_PROPS.PROP_ID)=[PayTypePropID]));"
+
+		On Error Resume Next
+		Set QD = Workarea.DAODataBase.CreateQueryDef("ideal_pay_by_deps", SQL)
+	Else
+		On Error Resume Next
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set RD = CreateLibObject("Redirect")
+		ScriptFileName = RD.GetFullPath("update_ideal_096.sql", True)
+
+		If ScriptFileName = "" Then 
+			updater.writeline "Не найден файл: update_ideal_096.sql"
+			updater.fail = True
+		Else
+			Set ScriptFile = FSO.OpenTextFile(ScriptFileName, 1)
+			SQl = ScriptFile.ReadAll
+			ScriptFile.Close
+
+			RunBatchSequence2 sql, "", updater
+		End If
+	End If
+
+	If Err.number <> 0 Then
+		updater.writelog "Ошибка выполнения скрипта: " & Err.description & " (" & Err.Number & ")"
+		updater.fail = True
+	Else
+		updater.writelog "Запросы обновлены"
+	End If
+
+End Sub
+'----
+'
+'----

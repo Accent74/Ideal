@@ -1,0 +1,61 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 26/08/2004 14:29:43
+'= Автор  : admin
+'= Код    : 0250 За совмещение
+'= Метод  : За совмещение
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+	Dim bOk
+	With Tr
+		bOk = True
+		If .Sum1 = 0 Then
+       ' Не указан оклад у замещаемого
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад замещаемого"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .GHours = 0 Then
+       ' Не указано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 And .sum3 <= 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		'sum1 	- оклад, того КОГО замещают
+		'tariff	- оклад, того КТО замещает
+		'sum3	- % надбавки, 1й приоритет в расчёте
+		If .sum3 > 0 Then ' делаем оклад по проценту :)
+			.sum = Round2(.sum1 / .ghours * .hours * .sum3 / 100,2)
+		Else
+			.sum = Round2(Abs(.sum1 - .tariff)/ .ghours * .Hours,2)
+		End If
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+' Оклад корреспондента-замещенца
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG)
+' % Оклада
+		.sum3 = .agent.prop(PROP_PZAM_TAG)
+' Оклад замещаемого
+		.sum1 = workarea.agent(.Agent.Prop(PROP_AG_ZAM)).prop(PROP_SALARY_TAG, .wperiod.firstday) 
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+	End With
+End Sub

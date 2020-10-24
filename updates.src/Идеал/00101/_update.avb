@@ -1,0 +1,96 @@
+'-----------
+'	Идеал 101
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const CURR_YEAR = 2016
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	If Not updater.fail Then updatemethods updater
+
+End Sub
+'----
+'
+'----
+Sub updatemethods(updater)
+	updatemethodbyfilename "2000-01 ЕСВ базовый.mtd", updater
+	If Not updater.fail Then updatemethodbyfilename "2002-01 ЕСВ, больничный (33,2% для всех, ФОТ).mtd", updater
+	If Not updater.fail Then updatemethodbyfilename "2002-01 ЕСВ, больничный (33,2% для всех, ФОТ).mtd", updater
+	If Not updater.fail Then updatemethodbyfilename "2003-01 ЕСВ ГПД (34,7%, ФОТ).mtd", updater
+	If Not updater.fail Then updatemethodbyfilename "2004-01 ЕСВ декретные (33.2%, ФОТ).mtd", updater
+
+	If Not updater.fail Then SetCodeProps "2000", 22, 34450, "ЕСВ базовый", updater
+	If Not updater.fail Then SetCodeProps "2000а", 22, 34450, "ЕСВ базовый (аванс)", updater
+	If Not updater.fail Then SetCodeProps "2002", 22, 34450, "ЕСВ, больничный для всех", updater
+	If Not updater.fail Then SetCodeProps "2003", 22, 34450, "ЕСВ ГПД", updater
+	If Not updater.fail Then SetCodeProps "2004", 22, 34450, "ЕСВ декретные", updater
+
+End Sub
+'----
+'
+'----
+Sub SetCodeProps(cCode, Percent, threshold, CodeName, updater)
+	Dim CodeID, Code
+
+	CodeID = Workarea.GetCodeID(cCode)
+	If CodeID <> 0 Then
+		Set Code = Workarea.Code(CodeID)
+		Code.Name = CodeName
+		Code.threshold = threshold
+		Code.Percent = Percent
+		Code.Save
+	Else
+		updater.writelog "Ошибка ! Не найден код " & cCode
+		updater.fail = True
+	End If
+End Sub
+'----
+'
+'----

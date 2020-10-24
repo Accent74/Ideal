@@ -1,0 +1,90 @@
+'-----------
+'	»деал 029
+'	модуль обновлени€ 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	AddDepends
+	ChangeGlobalScript
+	ShowWhatsNew "WhatNewIdeal.chm", "029.htm"
+End Sub
+
+'-------
+'
+'-------
+Sub AddDepends
+	Dim aCodes
+	Dim aDeps
+	Dim i
+
+	aCodes = Array("0801", "2100", "2100а", "2110", "2110а", "2120", "2120а", "2130", "2130а", "3020")
+	aDeps = Array(	"0110;0115;0210;0220;0230;0240;0250;0260;0270;0310;0320;0410;0420;0430;0440;0450;0510;0520;0530;0540;0550;0600;0610;0620;0630;091;095;096", _
+							"0801;2100а;2110а;2120а;2130а", _
+							"0117;2110а;2120a;2130а", _
+							"2110а", _
+							"0117", _
+							"2120а", _
+							"0117", _
+							"2130а", _
+							"0117", _
+							"0117;2100а;2110а;2120а;2130а")
+
+	For i = 0 To UBound(aCodes)
+		CheckDEpends Array(aCodes(i)), Split(aDeps(i), ";")
+	Next
+
+End Sub
+'-------
+'
+'-------
+Sub ChangeGlobalScript
+	Dim Fld
+	Dim i
+
+	Set Fld = Workarea.Code(GetFolderID2(WorkArea.Codes, "_√лобальные модули")).Children
+
+	For i = 1 To Fld.Count
+		With Fld.Item(i)
+			If .Name = "ќбщие подпрограммы" Then
+				.SetScriptFromfile "ќбщие подпрограммы.mtd"
+			End If
+		End With
+	Next
+
+End Sub
+'-------
+'
+'-------
+Function GetFolderID2(Root, FolderName)
+	Dim i
+	Dim FolderID
+
+	For i = 1 To Root.Count
+		With Root.Item(i)
+			If .Type = 0 Then
+				If .Name = FolderName Then
+					GetFolderID2 = .ID
+					Exit Function
+				Else
+					If .HasChildren Then 
+						FolderID = GetFolderID2(.Children, FolderName)
+						If FolderID <> 0 Then
+							GetFolderID2 = FolderID
+							Exit Function
+						End If
+					End If
+				End If
+			End If
+		End With
+	Next
+
+	GetFolderID2 = 0
+
+End Function

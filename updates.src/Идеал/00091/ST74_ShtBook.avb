@@ -1,0 +1,20 @@
+Option Explicit
+
+Sub CopyToExcel(Sh)
+	Dim objExcel, objWorkbook
+	Dim htmFileName
+
+	sh.range(1, 1, sh.columns, sh.rows).Select
+	sh.parent.copy
+
+	Set objExcel = CreateObject("Excel.Application")
+	objExcel.Application.Visible = True
+	Set objWorkbook = objExcel.Workbooks.Add
+	objWorkbook.ActiveSheet.Range("A1").Select
+	objWorkbook.ActiveSheet.Paste
+	objWorkbook.ActiveSheet.Range("A1").Select
+
+	sh.range(1, 1, 1, 1).Select
+
+End Sub
+

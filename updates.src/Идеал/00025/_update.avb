@@ -1,0 +1,26 @@
+'-----------
+'	Идеал 025
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim NewCode
+
+	With WorkArea
+		.Code(.GetCodeID("0510в")).SetScriptFromFile "0510в Отпускные настоящего периода.mtd"
+		.Code(.GetCodeID("0520п")).SetScriptFromFile "0520п Отпускные настоящего периода.mtd"
+		.Code(.GetCodeID("0530m")).SetScriptFromFile "0530m Компенсация отпускных (вручную).mtd"
+	End With
+
+	WorkArea.UserParam("CONFIG_DBVERSION1") = 25
+	ShowWhatsNew "WhatNewIdeal.chm", "025.htm"
+
+End Sub
+

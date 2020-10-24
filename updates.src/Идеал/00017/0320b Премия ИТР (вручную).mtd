@@ -1,0 +1,25 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:27:38
+'= Автор  : admin
+'= Код    : 0320 Премия
+'= Метод  : Премия ИТР (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If Abs(.sum1) > 0 Then
+			.Tariff = .Tariff	 / 100 * .sum1
+		End If
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+		If Not Abs(.sum1) > 0 Then	_
+			.Sum1 = .Agent.Prop("Премия, %")
+	End With
+End Sub

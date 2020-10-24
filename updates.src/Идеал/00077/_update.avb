@@ -1,0 +1,247 @@
+'-----------
+'	Идеал 077
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2014
+
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+Dim updater
+Set updater = New UpdateLog
+stop
+Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	updatetables(updater)
+	If Not updater.fail Then SetNewTax updater
+	If Not updater.fail Then update_time_table
+
+	If Not updater.fail Then
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "077.htm"
+		End If
+	Else
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub SetNewTax(updater)
+	Dim UTableID
+
+	If MsgBox("Обновлять ставки c января 2014 года ?", vbQuestion + vbOKCancel, "Акцент " & App.Version) = vbOK Then
+		UTableID = Workarea.GetSysUTableID("ПДТ")
+
+		If UTableID = 0 Then
+			updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+			updater.fail = True
+			Exit Sub
+		End If
+	
+		UpdateUTFieldValue UTableID, "Максимальный доход для НДФЛ", 12180.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный доход", 20706.00, updater
+		UpdateUTFieldValue UTableID, "Прожиточный минимум", 1218.00, updater
+		UpdateUTFieldValue UTableID, "Размер льготы ", 609.00, updater
+		UpdateUTFieldValue UTableID, "Максимальный льготный доход", 1710.00, updater
+
+	End If	
+
+End Sub
+'----
+'
+'----
+Sub updatetables(updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2014", updater
+	SetUTFieldValue UTableID, fMonth, "Февраль 2014", updater
+	SetUTFieldValue UTableID, fMonth, "Март 2014", updater
+
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+
+End Sub
+
+'----
+'
+'----
+Sub update_time_table
+	Dim i, SQL1, SQL2, SQL3
+	Dim Days, Hours, pp_id
+	Dim DefTableID
+	
+	Days = Array(21, 20, 20, 21, 19, 19, 23, 20, 22, 23, 20, 23)
+	Hours = Array(167,160,159,167,151,151,184,160,176,184,160,183)
+	
+	SQL1 = "insert into p_period (pp_type, pp_month, pp_year) values (0, "
+	SQL2 = "insert into time_table_values (tt_id, pp_id, ttv_days, TTV_HOURS) values ("
+	
+	DefTableID = GetDefTable()
+	
+	For i = 1 To 12
+		If FindPeriod(i, CURR_YEAR) = 0 Then
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL1 & i & ", " & CURR_YEAR & ")"
+			Else
+				RunSQL SQL1 & i & ", " & CURR_YEAR & ")"
+			End If
+
+			pp_id = FindPeriod(i, CURR_YEAR)
+
+			If App.AppType = "DAO" Then
+				workarea.daodatabase.execute SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			Else
+				RunSQL SQL2 & DefTableID & ", " & pp_id & ", " & Days(i-1) * 10 & "," & Hours(i-1) * 10 & ")"
+			End If
+		End If
+	Next
+	
+	SQL3 = "insert into time_table_holidays (tth_year, tth_1, tth_2, tth_3, tth_4, tth_5, tth_6, tth_7, tth_8, tth_9, tth_10, tth_11, tth_12) values ("
+	SQL3 = SQL3 & CURR_YEAR & ",	65,	0,	128,	524288,	259,	134217856,	0,	8388608,	0,	0,	0,	0)"
+	
+	If Not find_holidays(CURR_YEAR) Then
+		If app.appType = "DAO" Then
+			workarea.daodatabase.execute SQL3
+		Else
+			RunSQL SQL3
+		End If
+	End If
+End Sub
+'----
+'
+'----
+Function FindPeriod(nMonth, nYear)
+	Dim Rs, SQL
+
+	SQL = "select pp_id from p_period where pp_month=" & nMonth & " and pp_year=" & nYear
+
+	If App.AppType = "DAO" Then
+		Set Rs = Workarea.DAODatabase.Openrecordset(SQL)
+	Else
+		Set Rs = RunSQL(SQL)
+	End If
+
+	If Rs.eof Then 
+		FindPeriod = 0
+	Else
+		FindPeriod = rs.fields(0).value
+	End If
+End Function
+'----
+'
+'----
+Function find_holidays(nYear)
+	Dim Rs, SQL
+
+	SQL = "select tth_year from time_table_holidays where tth_year=" & nYear
+
+	If App.AppType = "DAO" Then
+		Set Rs = workarea.daodatabase.openrecordset(SQL)
+	Else
+		Set RS = RunSQL(SQL)
+	End If
+
+	find_holidays = Not Rs.eof
+
+End Function
+'----
+'
+'----
+Function GetDefTable()
+	Dim Rs, SQL
+
+	SQL = "select tt_id from time_tables where tt_flags = 1"
+
+	If App.AppType = "DAO" Then
+		Set Rs = workarea.daodatabase.openrecordset(SQL)
+	Else
+		Set Rs = RunSQL(SQL)
+	End If
+
+	If Rs.eof Then
+		GetDefTable = 0
+	Else
+		GetDefTable = Rs.Fields(0).Value
+	End If
+End Function
+'----
+'
+'----
+Function RunSQL(SQL)
+	Dim Cn, Cmd
+
+	Set Cn = WorkArea.AdoConnection
+	Cn.CursorLocation = 2 'курсор на нашей стороне
+	Set Cmd = CreateObject("ADODB.Command")
+	Set Cmd.ActiveConnection = Cn 
+	Cmd.CommandText = SQL
+	Set RunSQL = 	Cmd.Execute	' выполняем команду 
+
+End Function
+'----
+'
+'----
+
+

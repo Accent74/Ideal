@@ -1,0 +1,89 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=Windows-1251"> 
+<link rel="stylesheet" type="text/css" href="dialog.css">
+<title>Пенсионный фонд</title>
+<script>
+
+var dialogArgument = null;
+var tm = null
+
+function on_load()
+{
+  tm = dialogArgument;
+  if (tm == null)
+    return;
+  caption.innerHTML = tm.Code.Name + ' (' + tm.Code.Code + ')';
+  ag_name.innerHTML = tm.ValueAsString('Agent');
+  c_period.innerHTML = tm.ValueAsString('CPeriod');
+  w_period.innerHTML = tm.ValueAsString('WPeriod');
+  in_sum1.innerHTML = tm.ValueAsString('Tariff');
+  in_sum2.innerHTML = tm.ValueAsString('Tariff');
+  out_sum.innerHTML = tm.ValueAsString('Sum');
+  // insert rows
+  var dep = tm.SavedDepends;
+  dep.Sort(1,1);
+  var xr = common_props.rows('baserow');
+  var ri = xr.rowIndex + 1;
+  for (var i=0; i<dep.Count; i++) {
+	var dt = dep.Item(i+1);
+	var nr = common_props.insertRow(ri++);
+	// name
+	var nc = nr.insertCell(-1);
+	nc.className = "TCH";
+	nc.innerHTML = dt.ValueAsString('CodeName') + ' (<b>' + dt.ValueAsString('Code') + '</b>)';
+	// value
+	nc = nr.insertCell(-1);
+	nc.className = "TCV";
+	nc.align = "right";
+	nc.innerHTML = dt.ValueAsString('Sum');
+  }
+  if (tm.Tariff > 150.0)
+	out_prc.innerHTML = "2% (сумма > 150 грн.)";
+  else
+	out_prc.innerHTML = "1% (сумма <= 150 грн.)";
+}
+
+function onok()
+{
+}
+
+
+</script>
+</head>
+<body topmargin=10 bottommargin=10 bgColor=GhostWhite onload="on_load()" >
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr height="1"><td>
+<table border=0 cellspacing=0 cellpadding=0 width="100%" height="100%">
+<tr>
+    <td class=ActiveTab noWrap width="1"><div id=caption class="ActiveDiv">Пенсионный&nbsp;фонд</div></td>
+    <td class=PaddingTab nowrap width="*">&nbsp;</td>
+</tr>    
+</table>    
+</td></tr>
+<tr>
+<td vAlign=top class="FR">
+<table id="common_props" cellspacing=0 cellpadding=3 border=0 width="100%">
+  <tr><td class="TTH" colspan=2>Общие данные</td></tr>
+  <tr><td class="TCH">Сотрудник:</td><td  class="TCV" id='ag_name'>&nbsp;</td></tr>
+  <tr><td class="TCH">Период:</td><td  class="TCV" id='c_period'>&nbsp;</td></tr>
+  <tr><td class="TCH">Расчет за:</td><td  class="TCV" id='w_period'>&nbsp;</td></tr>
+  <tr><td colspan=2 style="font-size:1pt">&nbsp;</td></tr>
+  <tr id=baserow><td class="TTH" colspan=2>Начислено (базовая сумма)</td></tr>
+  <tr><td class="TCH"><b>Итого начислено:</b></td><td class="TCV" align=right style="background-color:moccasin;" id='in_sum1'>&nbsp;</td></tr>
+  <tr><td class="TCH"><b>База для удержания:</b></td><td class="TCV" align=right style="background-color:moccasin;" id='in_sum2'>&nbsp;</td></tr>
+  <tr><td colspan=2 style="font-size:1pt">&nbsp;</td></tr>
+  <tr><td class="TTH" colspan=2>Удержано</td></tr>
+  <tr><td class="TCH">Процент:</td><td  class="TCV" id='out_prc'>&nbsp;</td></tr>
+  <tr><td class="TCH"><b>Итого удержано:</b></td><td align=right class="TCV" style="background-color:moccasin;" id='out_sum'>&nbsp;</td></tr>
+</table>
+</td>
+</tr>
+<tr height=1>
+  <td align=right style="padding-top:10px">
+    <input class="BTN" id="IDOK" type=button value="Закрыть" size=52 onclick="onok()">
+  </td>
+</tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,108 @@
+'-----------
+'	Идеал 116
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "ST74_ADO.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2020
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+''
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	AddTableParams updater
+End Sub
+'----
+'
+'----
+Sub AddTableParams(updater)
+	Dim UTableID, fParams, fValue
+	Dim FrmID, FldID, NewFld, Fld
+
+	UTableID = Workarea.GetSysUTableID("ПДТ")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	'нужна проверка на пустые значения предыдущих полей
+	checkTValues UTableID, updater
+
+	fParams = GetUTFieldIDByName2(UTableID, "Параметр", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Значение", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fParams, USRTBL_MINCY, updater
+	SetUTFieldValue UTableID, fValue, 5000.00, updater
+
+	UpdateUTFieldValue UTableID, "Максимальный доход", 75000.00, updater		'25 ПМ
+
+End Sub
+'----
+'
+'----
+Function checkTValues(UTableID, updater)
+	Dim RS, SQL, fValue
+
+	SQL = "Select count(*), UTV_ROW from UT_VALUES where UT_ID = " & UTableID & " group by UTV_ROW having count(*) = 1"
+	Set Rs = GetRs(SQL)	
+
+	If Not Rs.eof Then
+		fValue = GetUTFieldIDByName2(UTableID, "Значение", updater)		
+		SetUTFieldValue UTableID, fValue, CCur(0.00), updater
+	End If
+
+End Function
+'----
+'
+'----
+

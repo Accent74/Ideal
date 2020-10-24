@@ -1,0 +1,8 @@
+Option Explicit
+
+Sub Workarea_OnLoad
+	Dim dlg
+	Set dlg = App.CreateDialog("version.adg")
+	If dlg Is Nothing Then Exit Sub
+	dlg.DoModal
+End Sub

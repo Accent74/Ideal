@@ -1,0 +1,129 @@
+'-----------
+'	Идеал 033
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim UTableID, fMonth, fValue
+	Dim FrmID, FldID, NewFld
+
+	'	коэффициенты индексации добавить на квартал 2001 года
+	UTableID = Workarea.GetSysUTableID("КИЗП")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом КИЗП (Коэффициент индексации заработной платы)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	fMonth = GetUTFieldIDByName2(UTableID, "Месяц/год", updater)
+	If updater.fail Then Exit Sub
+
+	fValue = GetUTFieldIDByName2(UTableID, "Процент", updater)
+	If updater.fail Then Exit Sub
+
+	SetUTFieldValue UTableID, fMonth, "Январь 2007"
+	SetUTFieldValue UTableID, fMonth, "Февраль 2007"
+	SetUTFieldValue UTableID, fMonth, "Март 2007"
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	SetUTFieldValue UTableID, fValue, CCur(0.00)
+	
+	' устанавливаем новые значения в таблице "Подоходный налог"
+	UTableID = Workarea.GetSysUTableID("ПДТ")
+
+	If UTableID = 0 Then
+		updater.writelog "Не найдена таблица с системным кодом ПДТ (Подоходный налог)"
+		updater.fail = True
+		Exit Sub
+	End If
+
+	UpdateUTFieldValue UTableID, "Размер льготы", 200, updater
+	UpdateUTFieldValue UTableID, "Максимальный льготный доход", 740, updater
+	UpdateUTFieldValue UTableID, "Прожиточный минимум", 525, updater
+	UpdateUTFieldValue UTableID, "Максимальный доход", 7875, updater
+
+	FrmID = AddProjItem(1, "Идеал Обязательные удержания c 010107", "Идеал_Обязательные удержания c 010107.afm", updater)
+
+	If Not updater.fail Then
+		' добавить форму для обяз. удержаний + папка
+		FldID = GetFolderID("Удержания")
+
+		If FldID = 0 Then
+			updater.writelog "Не найдена папка Удержания. Форма для удержаний добавлена не будет."
+		Else
+			With WorkArea.Folder(FldID).Children
+				Set NewFld = .Create("Обязательные с 01.07")
+				NewFld.FormID = FrmID
+				NewFld.Save
+			End With
+		End If
+	End If
+
+	FrmID = AddProjItem(1, "Идеал Аванс развернуто 01012007", "Идеал_Аванс_развернуто 01012007.afm", updater)
+	If Not updater.fail Then
+	'		добавить форму для обяз удержаний (аванс) + папка
+		FldID = GetFolderID("Выплаты")
+
+		If FldID = 0 Then
+			updater.writelog "Не найдена папка Выплаты. Форма для выплат добавлена не будет."
+		Else
+			With WorkArea.Folder(FldID).Children
+				Set NewFld = .Create("Аванс развернуто с 01.07")
+				NewFld.FormID = FrmID
+				NewFld.Save
+			End With
+		End If
+
+	End If
+
+	'	проверить установлены или нет параметры для нового больничного
+
+'	FldID = FindFolderID("Больничные развернуто после 01.06.2006", Workarea.Folders)
+
+	FldID = Workarea.Folders.Item(1).ID
+
+	With Workarea.Folders.Item(1).Params
+		If Not .Exists("Код(ы) начислений") Then .Create vbString, "Код(ы) начислений"
+'		.Item("Код(ы) начислений").Value = "0410п,0420п"
+'		.Save
+	End With
+
+	updater.refresh
+
+	'	добавить новые методы удержаний
+	AddCodes "2110", Array("2110j Пенсионный (2% + 0.5%) с 01.01.2007"), 200, 2, updater
+	If updater.fail Then Exit Sub
+
+	AddCodes "2110а", Array("2110a-4 Пенсионный 2% + 0.5% (аванс) с 01.01.2007"), 200, 2, updater
+	If updater.fail Then Exit Sub
+
+	' обновляем методы
+	RenameCode "2100п", "Подоходный налог", updater
+	updater.refresh
+
+	UpdateCodeScript "2110j", "2110j Пенсионный (2% + 0.5%) с 01.01.2007.mtd", Updater
+	UpdateCodeScript "2110a-4", "2110a-4 Пенсионный 2% + 0.5% (аванс) с 01.01.2007.mtd", Updater
+	UpdateCodeScript "2100п", "2100п Подоходный налог.mtd", Updater
+	UpdateCodeScript "2102m", "2100m Подоходный корр.mtd", Updater
+	UpdateCodeScript "2114m", "2114m Пенсионный Аванс.mtd", Updater
+	UpdateCodeScript "0620m", "0620m Транспорт (проезд).mtd", updater
+	UpdateCodeScript "2130п", "2130п Безработица.mtd", updater
+	UpdateCodeScript "2130ав", "2130ав Безработица (аванс).mtd", updater
+	UpdateCodeScript "2100а-п", "2100а-п Подоходный налог (аванс).mtd", updater
+
+	CheckDEpends Array("2100", "2110", "2120", "2130", "2140"), Array("0115")
+	CheckDEpends Array("2100а"), Array("2120а")
+
+	updater.refresh
+	if not updater.fail then ShowWhatsNew "WhatNewIdeal.chm", "033.htm"
+
+
+End Sub

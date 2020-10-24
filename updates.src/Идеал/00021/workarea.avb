@@ -1,0 +1,39 @@
+Option Explicit
+
+Sub Workarea_OnLoad
+	Dim msgb
+'	Dim dlg
+'	Set dlg = App.CreateDialog("version.adg")
+'	If dlg Is Nothing Then Exit Sub
+'	dlg.DoModal
+	
+	Set msgb = msg
+
+	With msgb
+		.visible = True
+		.write "Акцент-заработная плата версия " & app.Version, vbInformation
+		.write "Типовое решение Идеал версия " & workarea.userparam("CONFIG_VERSION1"), vbInformation
+	End With
+End Sub
+
+Sub Workarea_AfterCreate(Kind, KindID)
+	Dim i
+
+	If Kind = acAgent Then
+		With WorkArea.Agent(KindID)
+			If .Type = 3 Then
+				If .Prop("Признак дохода") = 0 Then
+					With .Properties
+						For i = 1 To .Count
+							With .Item(i)
+								If .Name = "Признак дохода" Then	.SetValue 3
+								If .Name = "Признак льготы" Then	.SetValue 52
+								If .Name = "ИНН" Then	.SetValue String(10, "Х")
+							End With
+						Next
+					End With
+				End If
+			End If
+		End With
+	End If
+End Sub

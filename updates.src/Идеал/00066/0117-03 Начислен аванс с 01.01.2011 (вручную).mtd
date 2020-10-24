@@ -1,0 +1,47 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 01/04/2011 16:50:09
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс с 01.01.2011
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim SumPay
+
+	With Tr
+
+		If .Sum2 > 0 Then
+			.Sum = .Sum2
+		ElseIf (.Sum1 > 0) Then
+			SumPay = Round2(.Tariff * .Sum1 / 100, 0)
+			.Sum2 = SumPay
+			.Sum = SumPay
+		End If
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .Agent.Prop("Дата приема")>.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+     	          .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			
+				.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+				If .Agent.Prop("% оклада для аванса") <> 0 Then					
+					.Sum1 = .Agent.Prop("% оклада для аванса")					
+				Else
+					.Sum1 = 0
+				End If
+			
+		End If
+	End With
+
+	SetDb(Tr)
+End Sub
+
+

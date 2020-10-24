@@ -1,0 +1,279 @@
+Option Explicit
+
+'--------------------
+' 00007 --> 00008
+'--------------------
+
+'1-------------------
+'	GetIDByCode(codeName)
+'	Возвращает ID кода/метода
+'2-------------------
+'	RenameCode (ID, mtdName)
+'	Переименовывает код/метод с идентификатором ID на mtdName
+'3-------------------
+'	WorkArea.Code(ID).SetScript(newProg)
+'	Назначает методу с идентификатором ID новую программу newProg
+'4-------------------
+'	GetTextFromFile(fileName)
+'	Возвращает содержимое файла fileName
+'	Который имеет расширение *.mtd и будет описан в ARD
+'5-------------------
+'	WorkArea.GetSysCodeID("&ОПП")
+'	Возвращает идентификатор метода "Общие подпрограммы"
+'6-------------------
+'	InsertUT(a1,a2,a3,a4)
+'	Добавляет записи в пользовательские таблицы
+'7-------------------
+'	DoForm(frmName)
+'	Создаёт форму frmName и связывает её с файлом frmName.afm
+'8-------------------
+'	DoFolder fldName,GetFormID(frmName)
+'	Создаёт папку fldName и связывает её с формой frmName
+'9-------------------
+'	InsertFolderTree(GetFolderID(fldName))
+'	Создаёт папку fldName в корне документов/папок
+'10------------------
+'	SetFotMax(max)
+'	Устанавливает новый предел для ФОТ
+'11------------------
+'	DefinitionInFile
+'	Одноразовая процедура изменения связи Определений на внешний файл
+'12------------------
+'	GetIDByName(name)
+'	Получить ID кода по Имени
+'13------------------
+'	MtdParent(mtdID, parentID)
+'	Переместить код mtdID внутрь кода parentID
+'14------------------
+'	DoSql(sqlName, sqlText)
+'	Создать вьюху sqlName и кодом sqlText
+'15------------------
+'	GetFormID(frmName)
+'	Получить ID формы по имени
+'16------------------
+'	AddAgProp(a1,a2,a3,a4)
+'	Добавить новое свойство сотрудника - Prop_No (a1), Prop_Name (a2), Prop_Type (a3), Node_Type (a4), PCat_ID (a5)
+'--------------------
+
+Sub Main(Updater)
+
+	AddAgProp 15, "Премия, %", 6, 3, 1
+
+	WorkArea.Code(GetIDByCode("0110ч")).SetScriptFromFile "0110ч Должностной оклад (часы).mtd"
+	WorkArea.Code(GetIDByCode("0120w")).SetScriptFromFile "0120w Тариф за час.mtd"
+
+End Sub
+
+'-------------------
+Function GetIDByCode(code)'long
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select MTD_ID from MTD_CODES where MTD_CODE='"&code&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для кода '"&code&"' найден более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("MTD_ID")
+		End If
+	End If
+	GetIDByCode = rez
+End Function
+
+'-------------------
+Function RenameCode(mtdID,nameMTD)'boolean
+	Dim rez	
+	Dim sql,db,QD
+	rez = False
+	If Not Len(CStr(nameMTD))> 0 Then Exit Function
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_NAME='"&nameMTD & _
+		"' WHERE MTD_ID="&mtdID
+	QD.Execute
+	rez = True
+	RenameCode = rez
+End Function
+
+'-------------------
+Function GetTextFromFile(fileName)'string
+	Dim rez,FS,TextFile,srcName	
+	rez = ""
+	srcName = CreateLibObject("redirect").GetFullPath(filename,True)
+	Set FS = CreateObject("Scripting.FileSystemObject")
+	Set TextFile = FS.OpenTextFile(srcName)
+	rez = TextFile.ReadAll
+	GetTextFromFile = rez
+End Function
+
+'-------------------
+Sub InsertUT(a1,a2,a3,a4)
+	Dim sql,db,QD,rs
+	sql = "Select UTV_STRING from UT_VALUES where UTV_STRING='"&a4&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO UT_VALUES (UT_ID,UTF_ID,UTV_ROW,UTV_STRING) VALUES ("&a1&","&a2&","&a3&",'"&a4&"')"
+		QD.Execute
+	End If
+End Sub
+
+'*---------------
+Function InsertFolderTree(ID)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into FLD_TREE (id) values ("&CStr(ID)&")"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function DoForm(frmName)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into forms (frm_guid, frm_type, frm_name, frm_file) values ("&CStr(NewGUID)&", 0, '"&frmName&"','"&frmName&".afm')"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function NewGuid
+	Dim rez,obj
+	Set obj = CreateLibObject("WinAPI")
+	rez = obj.NewGUID
+	NewGuid = rez
+End Function
+
+'---------------
+Function DoFolder(fldName,frmID)
+	Dim sql,db,qd
+	Set db = workarea.daodatabase
+	Set qd = db.createQueryDef("")
+	sql = "Insert into folders (fld_guid, frm_id, fld_name) values ("&CStr(NewGUID)&", "&CStr(frmID)&", '"&fldName&"')"
+	qd.sql = sql
+	qd.execute
+End Function
+
+'---------------
+Function GetFormID(frmName)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select FRM_ID from FORMS where FRM_NAME='"&frmName&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для формы '"&frmName&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("FRM_ID")
+		End If
+	End If
+	GetFormID = rez
+End Function
+
+'---------------
+Function GetFolderID(fldName)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select FLD_ID from FOLDERS where FLD_NAME='"&fldName&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для папки '"&fldName&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("FLD_ID")
+		End If
+	End If
+	GetFolderID = rez
+End Function
+
+'--------------
+Sub DoSql(sqlName, sqlText)
+	Dim db, qd, qdItem, flag
+	Set db = WorkArea.DAODataBase
+	flag = True
+	For Each qdItem In db.QueryDefs
+		If qdItem.Name = sqlName Then flag = False
+	Next
+	If flag Then _
+		db.CreateQueryDef sqlName, sqlText
+End Sub
+
+'--------------
+Sub MtdParent(mtdID, parentID)
+	Dim rs,sql
+	sql = "Select * from MTD_TREE where ID="&parentID
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		Dim p0,p1,p2,p3,p4,p5,p6,p7
+		p0 = ParentID
+		p1 = rs.fields("P0")
+		p2 = rs.fields("P1")
+		p3 = rs.fields("P2")
+		p4 = rs.fields("P3")
+		p5 = rs.fields("P4")
+		p6 = rs.fields("P5")
+		p7 = rs.fields("P6")
+		Dim db,QD
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "UPDATE MTD_TREE SET P0="&p0&", P1="&p1&", P2="&p2&", " &_
+			"P3="&p3&", P4="&p3&", P5="&p3&", P6="&p3&", P7="&p3&" WHERE ID="&mtdID
+		QD.Execute
+	End If
+End Sub
+
+'--------------
+Function GetIDByName(name)'long
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select MTD_ID from MTD_CODES where MTD_NAME='"&name&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If Not rs.eof Then 
+		If rs.recordcount>1 Then
+			MsgBox "Для кода с названием '"&name&"' найдено более одного идентификатора.",,"Ошибка"
+		Else
+			rez = rs.fields("MTD_ID")
+		End If
+	End If
+	GetIDByName = rez
+End Function
+
+'--------------
+Sub SetFotMax(max)
+	Dim db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_THRESHOLD="&max&" WHERE MTD_TYPE=103"
+	QD.Execute
+End Sub
+
+'-------------- 
+Sub DefinitionInFile
+	Dim db,QD
+	Set db = WorkArea.DAODataBase
+	Set QD = DB.CreateQueryDef("")
+	QD.sql = "UPDATE MTD_CODES SET MTD_FILE='definition.avb' WHERE MTD_NAME='Определения'"
+	QD.Execute
+End Sub
+
+'-------------------
+Sub AddAgProp(a1,a2,a3,a4,a5)
+	Dim sql,db,QD,rs
+	sql = "Select PROP_NAME from AG_PROP_NAMES where PROP_NAME='"&a2&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	If rs.eof Then 
+		Set db = WorkArea.DAODataBase
+		Set QD = DB.CreateQueryDef("")
+		QD.sql = "INSERT INTO AG_PROP_NAMES (PROP_NO,PROP_NAME,PROP_TYPE,NODE_TYPE,PCAT_ID) VALUES ("&a1&",'"&a2&"',"&a3&","&a4&","&a5&")"
+		QD.Execute
+
+	End If
+End Sub
+

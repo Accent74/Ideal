@@ -1,0 +1,112 @@
+BODY
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial;
+    margin:0px;
+	background-color:ghostwhite;
+}
+H1
+{
+    FONT-WEIGHT: bold;
+    FONT-SIZE: 10pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+
+A:hover 
+{ 
+  color:darkOrange;
+}
+
+A:visited 
+{ 
+  color:blue;
+}
+
+A:link
+{ 
+  color:blue;
+}
+
+.COPYRIGHT
+{
+    FONT-SIZE: 8pt;
+    COLOR: forestgreen;
+    BORDER-BOTTOM: 1px solid;
+    FONT-FAMILY: Verdana, Tahoma, Arial
+}
+H2
+{
+    MARGIN-TOP: 8pt;
+    FONT-WEIGHT: bold;
+    FONT-SIZE: 8pt;
+    MARGIN-BOTTOM: 2pt
+}
+.INDENT
+{
+    PADDING-LEFT: 4pt
+}
+TABLE
+{
+    FONT-SIZE: 8pt;
+    FONT-FAMILY: Verdana, Tahoma, Arial;
+}
+
+TABLE.TB
+{
+  border: 0px white solid;
+  width:100%;
+  height:100%;
+  border-collapse:collapse;
+}
+
+TABLE.TM
+{
+	background-color:white;
+	border:1px steelblue solid;
+	width:100%;
+}
+
+TD.TMI
+{
+  border:0px white solid;
+  font-weight:bold;
+  padding:5px;
+}
+
+TD.TMH
+{
+	background-color:Gainsboro;
+	border;1px white solid;
+	font-weight:bold;
+	padding:5px;
+}
+
+TD.TTH
+{
+  background-color:lightsteelblue;
+  color:darkblue;
+  padding:5px;
+  font-size:12pt;
+  font-weight:bold;
+  filter:progid:DXImageTransform.Microsoft.Wave(freq=1,LightStrength=10,Phase=0,Strength=0);
+}
+
+TD.TG
+{
+	padding-right: 15px;
+	padding-left: 15px; 
+	vertical-align:top;
+}
+
+TD.TDSCR
+{
+	padding:15px;
+}
+
+DIV.DESCR
+{
+	margin-top: 5px; 
+	display: block; 
+	margin-left: 15px;
+	font-weight:normal;
+}

@@ -1,0 +1,636 @@
+'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/02/2005 15:20
+'= Автор  : Alib Ezbar
+'==============================================
+'= Глобальный внешний модуль
+'==============================================
+
+' Названия свойств
+'==============================================
+Const PROP_SALARY_TAG			= "Оклад"
+Const PROP_PERHOUR_TAG		= "Тариф за час"
+Const PROP_GRAPH_TAG			= "График"
+Const PROP_DISQUANT_TAG		= "Признак льготы"
+Const PROP_DISQUANT_CHILD_TAG = "Признак льготы на детей"
+
+Const PROP_ADD_LGT				= "Увеличивать макс. льготный доход"
+Const PROP_DISDOHOD_TAG		= "Признак дохода"
+Const PROP_DB						= "Счёт затрат"
+Const PROP_DISCHILD_TAG		= "Количество детей"
+Const PROP_ALI						= "Процент алиментов"
+Const PROP_PENS					= "Дата выхoда на пенсию"
+Const PROP_UVOLEN				= "Дата увольнения"
+Const PROP_DISAB					= "Инвалид"
+Const PROP_TRUD					= "Трудовой договор"
+' для ЗАМЕЩЕНИЯ
+Const PROP_HOURS_ZAM 			= "Часы замещения"
+Const PROP_AG_ZAM 				= "Кого замещаем"
+Const PROP_FZAM1_TAG			= "С"
+Const PROP_TZAM1_TAG			= "По"
+Const PROP_PZAM_TAG				= "% Оклада"
+Const PROP_OZAM_TAG				= "Приказ"
+
+' Названия параметров подразделений
+'==============================================
+Const PRM_DB						=	"Счёт затрат"
+
+' Перечисления
+'==============================================
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+
+' Пользовательские таблицы
+'==============================================
+Dim USRTBL_INID				
+USRTBL_INID = workarea.GetSysUTableID("ДПЛ") ' Таблица "Размеры доплат"
+
+Const USRTBL_NIGHT				= "Ночные"
+Const USRTBL_EVENING			= "Вечерние"
+Const USRTBL_OVERTIME			= "Сверхурочные"
+Const USRTBL_HOLIDAY			= "Праздничные"
+Const PROP_TRADE					= "Трудовое соглашение"
+'----------------------------------------------
+Dim USRTBL_LGT
+USRTBL_LGT = workarea.GetSysUTableID("ПДТ") ' Таблица "Подоходный налог"
+
+Const USRTBL_DPAY				= "Размер льготы"
+Const USRTBL_DLTM				= "Максимальный льготный доход"
+Const USRTBL_MINLIF				= "Прожиточный минимум"
+Const USRTBL_MAXCY				= "Максимальный доход"
+Const USRTBL_ECB					= "Ставка ЕСВ, %"
+Const USRTBL_MAX_TAX			= "Максимальный доход для НДФЛ"
+'----------------------------------------------
+Dim USRTBL_ONE
+USRTBL_ONE = workarea.GetSysUTableID("КОД") ' Таблица "Реквизиты предприятия"
+
+Dim USRTBL_DOP
+USRTBL_DOP = workarea.GetSysUTableID("ДРП") ' Таблица "Реквизиты предприятия (доп.)"
+
+Dim USRTBL_REG
+USRTBL_REG = workarea.GetSysUTableID("НПФ") ' Таблица "Регистрационные номера"
+
+' Прочие
+'==============================================
+Const VALUE_NDS_PERCENT		= 20
+Const VALUE_PDN_PERCENT		= 13
+Const lvlTariff					= 50 ' Порог, когда оклад считается тарифом "<"
+Const MAX_LEVEL_SS				= 365 ' соцстрах, больше - 1%, меньше 0,5%
+
+Dim MAX_FOUND_CY
+MAX_FOUND_CY = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+
+Dim tblIndex
+Set tblIndex = workarea.utable(workarea.GetSysUTableID("КИЗП"))
+
+Dim LivingWage 
+LivingWage = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MINLIF,2)
+
+'==============================================
+Function GetUTID(tblCode)
+	Dim sql,rs,rez
+
+	MsgBox "Функция GetUTID устарела !"
+	sql = "Select UT_ID from USR_TABLES where UT_CODE='"&tblCode&"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	rez = 0
+	If Not rs.eof Then _
+		rez = rs("UT_ID")
+	GetUTID = rez
+
+End Function
+'==============================================
+Function GetDumByCodeDepsPPIN(mtdID, ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And (select mtd_type from mtd_codes where mtd_id = P_JOURNAL.mtc_id) = 101 and " & _
+				"W_PERIOD = " &ppID & " And MTC_ID In (Select MTD_ID_LEFT  from MTD_DEPENDS where MTD_ID_RIGHT=" & mtdID & ")"
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetDumByCodeDepsPPIN = rez
+End Function
+
+'==============================================
+Function GetDumByCodeDepsPP(mtdID, ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And W_PERIOD = " &ppID & " and MTC_ID in (select MTD_ID_LEFT  from MTD_DEPENDS where MTD_ID_RIGHT=" & mtdID & ")"
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetDumByCodeDepsPP = rez
+End Function
+
+'==============================================
+Function GetSumByCodePP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByCodePP = rez
+End Function
+'==============================================
+Function GetSumAgByMtdPP(AgID, mtdID, ppID)
+	Dim rs,sql
+
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID & " and Ag_ID=" & AgID
+	InitRS rs, sql 
+	GetSumAgByMtdPP = checknull(rs.fields(0).value, 0)
+
+End Function
+
+'==============================================
+Function IsAgIsIll(Ag, Period) 
+	Dim Sum, aCodes, i
+
+	Sum = 0
+	aCodes = Array("0410", "0420", "0430", "0440", "0450")
+
+	For i = 0 To UBound(aCodes)
+		Sum = GetSumAgByMtdPP(Ag.ID, workarea.GetCodeID(aCodes(i)), Period)
+		If Sum <> 0 Then
+			IsAgIsIll = True
+			Exit Function
+		End If
+	Next
+
+	IsAgIsIll = False
+End Function
+
+'==============================================
+Function GetSumByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_SUM>" & CStr(MAX_FOUND_CY) & "," & CStr(MAX_FOUND_CY) & ",JP_SUM)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByMtdPP = rez
+End Function
+
+'==============================================
+Function GetTariffByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_TARIFF>" & CStr(MAX_FOUND_CY) & "," & CStr(MAX_FOUND_CY) & ",JP_TARIFF)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&mtdID&" AND JP_SUM>0 And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetTariffByMtdPP = rez
+End Function
+'==============================================
+Function GetTariffByMtcPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+
+	rez = 0
+	sql = "Select Sum(IIF(JP_TARIFF>" & CStr(MAX_FOUND_CY) & "," & CStr(MAX_FOUND_CY) & ",JP_TARIFF)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" AND JP_SUM>0 And W_PERIOD="&ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) > 0 Then _
+		rez = rs("SUM_REZ")
+	GetTariffByMtcPP = rez
+End Function
+
+
+
+'==============================================
+Function GetFotPercent(codeName)
+	Dim rez,rs,sql
+	rez = 0
+	sql = "SELECT MTD_PERCENT FROM MTD_CODES WHERE " & _
+		" MTD_CODE = '" & codeName &"'"
+	InitRS rs,sql
+	If Not rs.eof Then _
+		rez = rs("MTD_PERCENT")
+	GetFotPercent = rez	
+End Function
+
+
+'==============================================
+Sub InitRS(ByRef rs, sql) ' простая инициализация
+	Dim db,qd 	' для ADO
+	Dim cn,cmd	' для SQL
+	Select Case app.appType
+		Case "DAO":
+			Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+		Case "OLEDB", "SQL" :
+
+			sql = Replace(sql, Chr(34), "'")
+
+			Set cn = WorkArea.ADOConnection
+			Set cmd = CreateObject("AdoDb.Command")
+			Set cmd.ActiveConnection = cn
+			cmd.commandText = sql
+			Set rs = cmd.execute
+	End Select
+	' передаём созданный RS в основную программу	
+End Sub
+
+'==============================================
+Function GetFotMax(codeName)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "SELECT MTD_THRESHOLD FROM MTD_CODES WHERE " & _
+			" MTD_CODE = '" & codeName &"'"
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("MTD_THRESHOLD")		
+	GetFotMax = rez
+End Function
+
+'==============================================
+Function GetHoursByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_HOURS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetHoursByMtd = rez / 10
+End Function
+
+'==============================================
+Function GetDaysByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_DAYS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&mtdID&" And W_PERIOD="&ppID
+	InitRS rs,sql ' DAO & OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetDaysByMtd = rez * 8
+End Function
+
+'---
+'
+'---
+Function DeleteAllRows(Tr)
+	DeleteAllRows = True
+End Function
+'---
+'
+'---
+Function Filldepartment3(Op, mArray, Flag)
+	Dim i
+	Dim AgRoot
+	Dim RowNo
+	Dim dFirst, dLast
+	Dim dIn, Dout
+
+	Op.Pack2 GetRef("DeleteAllRows")
+	dFirst = Op.wperiod.firstday
+	dLast = Op.wperiod.lastday
+	RowNo = 0
+
+	With WorkArea.Agent(Op.OrgID)
+		If Flag Then
+			Set AgRoot = .Nested
+		Else
+			Set AgRoot = .Children
+		End If
+	End With
+
+	For i = 1 To AgRoot.Count
+		With AgRoot.Item(i)
+			If .Type = 3 Then
+				dIn = .Prop("Дата приема")
+				Dout = .Prop("Дата увольнения")
+
+				If ((dIn <= dLast Or dIn = 0) And (Dout >= dLast Or Dout = 0)) Or _
+					(Dout >= dFirst And Dout <= dLast) Then
+
+					If (.Prop(PROP_PERHOUR_TAG) = 0 And op.long2 = 0) Or _
+							(.Prop(PROP_PERHOUR_TAG) <> 0 And op.long2 = -1) Then
+						RowNo = RowNo + 1
+						AddAgToOp .ID, Op, RowNo, mArray
+					Else
+						Msg.Write ": Внимание! Тарифный план для " & .Name & " не соответствует установленному в документе", vbCritical, _
+                "kind:agent;id=" & .ID & ";action=properties"
+					End If
+				End If
+			End If
+		End With
+	Next
+
+	Op.SetAllAgents
+	Op.renumberRows
+
+	If RowNo = 0 Then RowNo = 1
+
+	Filldepartment3 = RowNo
+
+End Function
+'---
+'
+'---
+Sub AddAgToOp(AgID, Op, RowNo, mArray)
+	Dim s
+	Dim i
+
+	For i = 0 To UBound(mArray)
+		With op.TransRM(RowNo, mArray(i))
+			.AgID = AgID
+
+			If i = 0 Then
+				s = .Tariff
+			Else
+				.Tariff = s
+			End If
+
+			If op.long2 = 0 Then
+				.Hours = 0
+			ElseIf op.long2 = -1 Then 
+				.Days = 0
+			End If
+		End With
+	Next
+End Sub
+'---
+'
+'---
+
+Function CalcKIndex(AgBaseMonth, OnDate)
+	Dim K
+ 	Dim RK
+ 	Dim SalaryDate
+	Dim aMonth
+
+	aMonth	= Array("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+	K = 1
+  	RK = 1
+  	SalaryDate = DateAdd("m", 1, AgBaseMonth)
+
+	While SalaryDate <= FirstDayInMonth(DateAdd("m", -2, OnDate))
+  		RK = RK * tblIndex.GetValue(1, aMonth(Month(SalaryDate) - 1) & " " & CStr(Year(SalaryDate)), 2) / 100
+
+			If CCur(RK) > 1.01 Then
+				K = K * Round2(RK, 3)
+			    RK = 1
+		   End If
+	   SalaryDate = DateAdd("m", 1, SalaryDate)
+	Wend
+
+  CalcKIndex = Round2((K - 1) * 100, 1)
+
+End Function
+'---
+'
+'---
+Function strzero(num, NumLen)
+	Dim cNum
+
+	cNum = CStr(num)
+
+	If Len(cNum) < NumLen Then
+		strzero = String(NumLen - Len(cNum), "0") & cNum
+	Else
+		strzero = cNum
+	End If
+
+End Function
+'---
+'
+'---
+Function CalcSumByPeriod(AgID, CodeID, dStart, dEnd)
+	Dim DB, Cmd, Cn, Rs
+	Dim DateStr
+
+	SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM] " & _
+						"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " & _
+						"WHERE (((P_JOURNAL.AG_ID)=" & AgID& ") And ((P_DOCUMENTS.PD_DATE) Between @)) " & _
+						"GROUP BY MTD_CODES.MTD_ID " & _
+						"HAVING (((MTD_CODES.MTD_ID)=" & CodeID & "));"
+
+	If App.AppType = "DAO" Then
+		DateStr = "#" & Formatdate2(dStart, "yyyy/mm/dd") & "# And #" & Formatdate2(dEnd, "yyyy/mm/dd") & "#"
+		SQLString = Replace(SQLString, "@", DateStr)
+		Set Rs = Workarea.DAODAtabase.OpenRecordset(SQLString)
+	Else
+		DateStr = "'" & strzero(Year(dStart), 4) & strzero(Month(dStart), 2) & strzero(Day(dStart), 2) & "' And '" & _
+								strzero(Year(dEnd), 4) & strzero(Month(dEnd), 2) & strzero(Day(dEnd), 2) & "'"
+		SQLString = Replace(SQLString, "@", DateStr)
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+		Set GetRs = Rs	' выполняем команду 
+	End If
+	
+	If Rs.eof Then
+		CalcSumByPeriod = 0
+	Else
+		CalcSumByPeriod = Rs.Fields(0).Value
+	End If
+	
+End Function
+'---
+'	возвращает общую сумму начислений - удержаний с учетом исключений не зависимо от установки "Служебный код"
+'---
+Function Ideal_GetAgentSum(AgID, PeriodID)
+	Dim SQL, aExclude, Rs
+
+	With workarea
+		aExclude = Array(.getcodeid("0117"), .getcodeid("2440"))
+	End With
+
+	If App.AppType = "DAO" Then
+		SQL = "Select sum(IIf(mtd_type=101,1,-1)*JP_SUM) AS ag_sum "
+	Else
+		SQL = "Select sum(case when mtd_type=101 then JP_SUM else -JP_SUM) AS ag_sum "
+	End If
+
+	SQL = SQL & "FROM MTD_CODES " & _
+						"INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID " & _
+						"WHERE mtd_type <> 103 and P_JOURNAL.W_PERIOD=" & PeriodID & "  And P_JOURNAL.JP_DONE=1 And P_JOURNAL.AG_ID=" & AgID
+	SQL = SQL & "And Not MTD_CODES.MTD_ID In (" & Join(aExclude, ",") & ")"
+
+	InitRS Rs, SQL
+
+	If Not Rs.eof Then
+		Ideal_GetAgentSum = checknull(Rs.Fields(0).Value, 0)
+	Else
+		Ideal_GetAgentSum = 0
+	End If
+
+End Function
+'---
+'
+'---
+Sub CalcSumByPeriod_my(AgID, CodeID, dStart, dEnd)
+	Dim DB, Cmd, Cn, Rs, prm 
+	Const adCmdText = 1
+	Const adParamInput = 1
+	Const adDate = 7
+
+	If App.AppType = "DAO" Then
+		SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM], Max(P_JOURNAL.org_id) as org, max(P_JOURNAL.jp_db) " & _
+							"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " & _
+							"WHERE (((P_JOURNAL.AG_ID)=" & AgID& ") And ((P_DOCUMENTS.PD_DATE) Between '#" & Formatdate2(dStart, "yyyy/mm/dd") & "#' And '#" & Formatdate2(dEnd, "yyyy/mm/dd") & "#')) " & _
+							"GROUP BY MTD_CODES.MTD_ID " & _
+							"HAVING (((MTD_CODES.MTD_ID)=" & CodeID & "));"
+
+		SQLString = Replace(SQLString, "'", "")
+		Set Rs = Workarea.DAODAtabase.OpenRecordset(SQLString)
+	Else
+		SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM], Max(P_JOURNAL.org_id) as org, max(P_JOURNAL.jp_db) " & _
+							"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " & _
+							"WHERE (((P_JOURNAL.AG_ID)=" & AgID& ") And ((P_DOCUMENTS.PD_DATE) Between ? And ? )) " & _
+							"GROUP BY MTD_CODES.MTD_ID " & _
+							"HAVING (((MTD_CODES.MTD_ID)=" & CodeID & "));"
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 
+		Set Cmd = CreateObject("ADODB.Command")
+		Set Cmd.ActiveConnection = Cn
+		Cmd.CommandType = adCmdText
+		Cmd.CommandText = SQLString
+	
+		Set Prm = Cmd.CreateParameter(, adDate, adParamInput) 
+		Prm.Value = dStart 
+		Cmd.Parameters.Append Prm 
+
+		Set Prm = Cmd.CreateParameter(, adDate, adParamInput) 
+		Prm.Value = dEnd 
+		Cmd.Parameters.Append Prm 
+
+		Set rs = cmd.execute
+	End If
+
+	If Rs.eof Then
+		AgSum = 0
+		OrgId = 0
+		Accdb = ""
+	Else
+		AgSum = Rs.Fields(0).Value
+		Orgid = Rs.Fields(1).Value
+		Accdb = Rs.Fields(2).Value
+	End If
+	
+End Sub
+'---
+'
+'---
+Sub GetHoursByAg(AgID, ppID, ByRef nDays, ByRef nHours)
+	Dim rez, sql, Rs
+
+	rez = 0
+	sql = "Select sum(P_JOURNAL.JP_HOURS), sum(P_JOURNAL.JP_DAYS) " & _
+				"FROM MTD_CODES INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID " & _
+				"WHERE (((P_JOURNAL.AG_ID)=" & AgID & ") And ((P_JOURNAL.JP_DONE)=1) And ((MTD_CODES.MTD_TYPE)=101) And ((P_JOURNAL.C_PERIOD)=" & ppID & _
+				") And ((P_JOURNAL.JP_SUM)<>0))"
+
+
+	InitRS rs,sql ' DAO & OLEDB init
+
+	If Not rs.eof	Then
+		nDays = Rs.Fields(1).Value / 10
+		nHours = Rs.Fields(0).Value
+	Else
+		nDays = 0
+		nHours = 0
+	End If
+
+End Sub 
+'---
+'
+'---
+Sub GetHoursByAgCodeDep(AgID, ppID, CodeID, ByRef nDays, ByRef nGDays, ByRef nHours)
+	Dim rez, sql, Rs
+
+	rez = 0
+	sql = "Select sum(P_JOURNAL.JP_HOURS), sum(P_JOURNAL.JP_DAYS), sum(P_JOURNAL.JP_GDAYS)  " & _
+				"FROM MTD_CODES INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID " & _
+				"WHERE (((P_JOURNAL.AG_ID)=" & AgID & ") And ((P_JOURNAL.JP_DONE)=1) And ((MTD_CODES.MTD_TYPE)=101) And ((P_JOURNAL.C_PERIOD)=" & ppID & _
+				") And ((P_JOURNAL.JP_SUM)<>0)) and mtd_codes.mtd_id in (select mtd_id_left from mtd_depends where mtd_id_right = " & CodeID & ")"
+
+
+	InitRS rs,sql ' DAO & OLEDB init
+
+	If Not rs.eof	Then
+		nDays = checknull(Rs.Fields(1).Value, 0) / 10
+		nHours = checknull(Rs.Fields(0).Value, 0) / 10
+		nGDays = checknull(Rs.Fields(2).Value, 0) / 10
+	Else
+		nDays = 0
+		nHours = 0
+		nGDays = 0	
+	End If
+
+End Sub 
+'---
+'
+'---
+Sub GetHoursByAgCodeDep2(AgID, ppID, CodeID, ByRef nDays, ByRef nGDays, ByRef nHours)
+	Dim rez, sql, Rs
+
+	rez = 0
+	sql = "Select sum(P_JOURNAL.JP_HOURS), sum(P_JOURNAL.JP_DAYS), sum(P_JOURNAL.JP_GDAYS)  " & _
+				"FROM MTD_CODES INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID " & _
+				"WHERE (((P_JOURNAL.AG_ID)=" & AgID & ") And ((P_JOURNAL.JP_DONE)=1) And ((MTD_CODES.MTD_TYPE)=101) And ((P_JOURNAL.C_PERIOD)=" & ppID & _
+				")) and mtd_codes.mtd_id in (select mtd_id_left from mtd_depends where mtd_id_right = " & CodeID & ")"
+
+
+	InitRS rs,sql ' DAO & OLEDB init
+
+	If Not rs.eof	Then
+		nDays = checknull(Rs.Fields(1).Value, 0) / 10
+		nHours = checknull(Rs.Fields(0).Value, 0) / 10
+		nGDays = checknull(Rs.Fields(2).Value, 0) / 10
+	Else
+		nDays = 0
+		nHours = 0
+		nGDays = 0	
+	End If
+
+End Sub 
+
+
+'==============================================	
+
+Function 	CalcWorkDays(ByVal dStart, ByVal dEnd)
+	Dim MCalendar, nMonth, i, aDays, OnDay, nWorkDays
+
+	OnDay = dStart
+	nMonth = 0
+	nWorkDays = 0
+
+	While OnDay <= dEnd
+		If nMonth <> Month(OnDay) Then
+			nMonth = Month(OnDay)
+			Set MCalendar = Workarea.MonthCalendar(Month(OnDay), Year(OnDay))
+			aDays = MCalendar.WeekDaysArray(2)
+		End If
+
+		If aDays(Day(OnDay) - 1) = 0 Then nWorkDays = nWorkDays + 1
+
+		OnDay = DateAdd("d", 1, OnDay)
+	Wend
+	
+	'OnDay = DateAdd("d", -1, OnDay)
+	CalcWorkDays = nWorkDays
+
+End Function
+
+'---
+'
+'---
+	

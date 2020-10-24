@@ -1,0 +1,29 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 03/10/2005 11:19:39
+'= Автор  : admin
+'= Код    : 0550 Увольнительные
+'= Метод  : Увольнительные
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days <> 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum   = .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim i,vDays
+	With Tr
+		Dim bl,dep,mm,dd,dat
+		If .AgID <= 0 Then Exit Sub 'Если нет агента
+		If .Agent.Type <> 3 Then Exit Sub 'Если агент не сотрудник
+
+		SetDb(Tr)
+	End With
+End Sub
+

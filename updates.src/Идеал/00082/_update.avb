@@ -1,0 +1,216 @@
+'-----------
+'	Идеал 082
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2014
+
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddArmyMethods updater
+
+	If Not updater.fail Then updater.refresh
+
+	CheckDEpends Array("2500"), Array("0110","0115","0210","0220","0230","0240","0250","0260","0270",_
+					"0310","0320","0410","0420","0440","0450","0510","0520","0530",_
+					"0540","0550","0600","0610","0620","0630","0801","091","096",_
+					"2100а","2110","2110а","2120","2120а","2130","2130а"), True, updater
+
+	CheckDEpends Array("2500а"), Array("0117", "2110а", "2120а", "2130а"), True, updater
+
+	UpgradeForms updater
+
+	If Not updater.fail Then
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "082.htm"
+		End If
+	Else
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddArmyMethods(updater)
+	Dim FldRoot, Fld, Mtd, NewCodeRoot
+
+	Set FldRoot = GetFolder("2 Удержания", workarea.codes)
+
+	If Not FldRoot Is Nothing Then 
+		Set Fld = GetFolder("25 Военный сбор", FldRoot.Children)
+
+		If Fld Is Nothing Then
+			Set Fld = FldRoot.Children.Create(0, "", "25 Военный сбор")
+			If Not Fld Is Nothing Then
+				updater.writelog "В начислениях/удержаниях создана папка '25 Военный сбор'"
+			Else
+				updater.writelog "В начислениях/удержаниях невозможно создать папку '25 Военный сбор'"
+				updater.fail = True
+				Exit Sub
+			End If
+		End If
+
+		If Workarea.GetCodeID("2500") = 0 Then
+			Set NewCodeRoot = Fld.Children.Create(102, "2500", "Военный сбор")
+			NewCodeRoot.DbCode = 661 
+			NewCodeRoot.DbCode = 642
+			NewCodeRoot.Save
+
+			If Not NewCodeRoot Is Nothing Then
+				updater.writelog "Добавлен код 2500 'Военный сбор'"
+			Else
+				updater.writelog "Невозможно добавить код 2500 'Военный сбор'"
+				updater.fail = True
+				Exit Sub
+			End If
+		Else
+			Set NewCodeRoot = Workarea.Code(Workarea.GetCodeID("2500"))
+		End If
+
+		If Workarea.GetCodeID("2501") = 0 Then
+			Set Mtd = NewCodeRoot.Children.Create(200, "2501", "Военный сбор 1,5%")
+			Mtd.DEfault = True
+			Mtd.MethodType = 1
+			Mtd.Percent = 1.5
+			Mtd.Save
+			updater.writelog "Добавлен метод 2501 'Военный сбор 1,5%'"
+		End If
+
+		If Workarea.GetCodeID("2501m") = 0 Then
+			Set Mtd = NewCodeRoot.Children.Create(200, "2501m", "Военный сбор 1,5% (корр)")
+			Mtd.DEfault = True
+			Mtd.MethodType = 0
+			Mtd.Save
+			updater.writelog "Добавлен метод 2501m 'Военный сбор 1,5% (корр)'"
+		End If
+
+		If Workarea.GetCodeID("2500а") = 0 Then
+			Set NewCodeRoot = Fld.Children.Create(102, "2500а", "Военный сбор 1,5% (аванс)")
+			NewCodeRoot.DbCode = 661 
+			NewCodeRoot.DbCode = 642
+			NewCodeRoot.Save
+
+			If Not NewCodeRoot Is Nothing Then
+				updater.writelog "Добавлен код 2500а 'Военный сбор 1,5% (аванс)'"
+			Else
+				updater.writelog "Невозможно добавить код 2500а 'Военный сбор 1,5% (аванс)'"
+				updater.fail = True
+			End If
+		Else
+			Set NewCodeRoot = Workarea.Code(Workarea.GetCodeID("2500а"))
+		End If
+
+		If Workarea.GetCodeID("2501а") = 0 Then
+			Set Mtd = NewCodeRoot.Children.Create(200, "2501а", "Военный сбор 1,5% (аванс)")
+			Mtd.DEfault = True
+			Mtd.MethodType = 1
+			Mtd.Percent = 1.5
+			Mtd.Save
+			updater.writelog "Добавлен метод 2501а Военный сбор 1,5% (аванс)"
+		End If
+	Else
+		updater.writelog "Папка '2 Удержания' в списке кодов начислений не найдена"
+		updater.fail = True
+	End If
+End Sub
+'----
+'
+'----
+Sub UpgradeForms(updater)
+	Dim FldRootID, FldRoot
+
+	If updater.fail Then Exit Sub
+
+	AddFormAndFolder "Удержания", "1. Обязательные c 03.08.14", "Идеал_Обязательные удержания c 030814", updater
+	AddFormAndFolder "Удержания", "2. Обязательные c 03.08.14 (шахтеры)", "Идеал_Обязательные удержания c 030814 (шахтеры)", updater
+
+	FldRootID = FindFolderID("Удержания", workarea.folders)
+
+	If FldRootID = 0 Then
+		Set FldRoot = workarea.folders
+	Else
+		Set FldRoot = workarea.folder(FldRootID).Children
+	End If
+
+	MoveFolder "1. Обязательные с 01.2011", "Архив", FldRoot, updater
+	MoveFolder "2. Обязательные с 01.2011 (шахтеры)", "Архив", FldRoot, updater
+End Sub
+'----
+'
+'----
+Sub MoveFolder(FldName, ArchName, FldRoot, updater)
+	Dim FldID, ArchID, ArchFld
+
+	FldID = FindFolderID(FldName, FldRoot)
+
+	If FldID = 0 Then
+		updater.writelog "Внимание ! Папка " & FldName & " не найдена"
+		Exit Sub
+	End If
+
+	ArchID = FindFolderID(ArchName, FldRoot)
+
+	If ArchID = 0 Then
+		Set ArchFld = FldRoot.Create("Архив")
+		ArchID = ArchFld.ID
+	End If
+
+	MoveOneFolder FldID, ArchID
+	updater.writelog "Папка " & FldNAme & " перемещена в папку " & ArchNAme
+
+End Sub
+'----
+'
+'----
+
+
+

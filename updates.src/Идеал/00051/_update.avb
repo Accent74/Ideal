@@ -1,0 +1,210 @@
+'-----------
+'	Идеал 051
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+Const AgCat = "Категория ЗЛ"
+Const AgSS = "Спецстаж"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim ProjID
+	
+	ProjID = AddProjItem(1, "Персонификация (ежемесячно)", "Идеал_Персонификация 2010.afm", True, updater)
+
+	If ProjID <> 0 Then
+		AddFolder "Прочее", "Персонификация (ежемесячно)", ProjID, "ПФМ"
+	End If
+
+	updatemethod workarea.GetCodeID("0801-01"), "0801-01 Льгота по подоходному налогу.mtd", updater
+
+	addcode "4000", "4000e", "Персонификация (табл. 7)", updater
+	addcode "4000", "4000r", "Персонификация (табл. 5)", updater
+	addmethods updater
+	addAgsProps updater
+
+	updater.refresh
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "051.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Устанвка обновлений"
+	End If
+End Sub
+'----
+'
+'----
+Sub addcode(RootCode, Code, CodeName, updater)
+	Dim CodeID, NewCode
+	
+	If updater.fail Then Exit Sub
+
+	CodeID = Workarea.GetCodeID(RootCode)
+
+	If CodeID = 0 Then
+		updater.writelog "Не обнаружен код " & RootCode
+		updater.fail = True
+	Else
+		Set NewCode = Workarea.Code(CodeID).Children.Create(200, Code, CodeName)
+		If NewCode Is Nothing Then
+			updater.writelog "Невозможно создать код " & Code & " " & CodeName
+			updater.fail = True
+		Else
+		End If
+	End If
+End Sub
+'----
+'
+'----
+Function GetRootFolder(Root, FolderName, updater)
+	Dim i, NewFolder
+
+	For i = 1 To Root.Count
+		With Root.Item(i)
+			If UCase(.name) = UCase(FolderName) Then
+				Set GetRootFolder = Root.Item(i)
+				Exit Function
+			End If
+		End With
+	Next
+
+	Set NewFolder = Root.Create(0, "", FolderName)
+	updater.refresh
+
+	If NewFolder Is Nothing Then
+		updater.writelog "Невозможно создать папку кодов " & FolderName
+		updater.fail = True
+	Else
+		updater.writelog "Создана папка кодов " & FolderName
+	End If
+	
+End Function
+
+'----
+'
+'----
+
+Sub addmethods(updater)
+	Dim i, NewCode, CodeRoot
+	Dim aNames, NewCodeStr
+
+	If updater.fail Then Exit Sub
+
+	aNames = Array("(пенсионный)", "(больничные предпр.)", "(больничные СС)", "(отпуск)", "(ЗП)")
+	Set CodeRoot = GetRootFolder(Workarea.Codes, "Отчеты", updater)
+
+	With CodeRoot.Children
+		For i = 0 To 4
+			NewCodeStr = "004" & i
+
+			If Workarea.GetCodeID(NewCodeStr) = 0 Then
+				Set NewCode = .Create(103, NewCodeStr, "Персонификация 2010 " & aNames(i))
+				updater.refresh
+	
+				If Not NewCode Is Nothing Then
+					updater.writelog "добавлен метод " & NewCode.Code & " " & NewCode.Name
+	
+					Select Case i
+						Case 0
+							CheckDEpends Array(NewCode.Code), Array("2110", "2110a")
+						Case 1
+							CheckDEpends Array(NewCode.Code), Array("0410")
+						Case 2
+							CheckDEpends Array(NewCode.Code), Array("0420", "0440")
+						Case 3
+							CheckDEpends Array(NewCode.Code), Array("0510", "0530")
+						Case 4
+							CheckDEpends Array(NewCode.Code), Array("0110", "0117", "0530")
+					End Select
+				Else
+					updater.writelog "Невозможно добавить метод/код " & NewCodeStr & " Персонификация 2010 " & aNames(i)
+					updater.fail = True
+					Exit Sub
+				End If
+			End If
+		Next
+	End With
+End Sub
+'----
+'
+'----
+Sub AddAgsProps(updater)
+	Dim NewAg
+	Dim IsAgAdd
+
+	If updater.fail Then Exit Sub
+
+	Set NewAg = findAgent(Workarea.Agents)
+
+	If NewAg Is Nothing Then
+		Set NewAg = Workarea.Agents.Create(3, "Удали меня")
+
+		If NewAg Is Nothing Then
+			updater.writelog "Невозможно создать сотрудника"
+			updater.fail = True
+			Exit Sub
+		End If
+
+		IsAgAdd = True
+	Else
+		IsAgAdd = False
+	End If
+
+	If NewAg.Prop(AgSS) = "" Then
+		AddAgProps "Коды и признаки", AgSS, 3, 111
+	End If
+
+	If NewAg.Prop(AgCat) = "" Then
+		AddAgProps "Коды и признаки", AgCat, 3, 103
+	End If
+
+	If IsAgAdd Then
+		
+		If Not Workarea.removeelem(acAgent, AgAdd.ID) Then
+			updater.writelog "Невозможно удалить временно созданного сотрудника"
+		End If
+	End If
+
+	updater.refresh
+End Sub
+'----
+'
+'----
+Function findAgent(Ags)
+	Dim i
+	Dim Ag
+
+	Set findAgent = Nothing
+
+	For i = 1 To Ags.Count
+		With Ags.Item(i)
+			If .Type = 3 Then
+				Set findAgent = Ags.Item(i)
+				Exit Function
+			End If
+
+			If .HasChildren Then 
+				Set Ag = findAgent(.Children)
+
+				If Not Ag Is Nothing Then 
+					Set findAgent = Ag
+					Exit Function
+				End If
+
+			End If
+		End With
+	Next
+	
+
+End Function
+'----
+'
+'----

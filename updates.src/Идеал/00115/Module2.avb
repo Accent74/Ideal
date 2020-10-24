@@ -1,0 +1,46 @@
+Option Explicit
+
+Dim CatID, DB, Rs, SQL, CatNO
+
+Set DB = workarea.DAODataBase
+Set Rs = DB.OpenRecordset("select pcat_id from AG_PROP_CATEGORY where pcat_name='Дополнительные начисления'")
+
+If Rs.EOF Then
+	CatNO = checknull(DB.Openrecordset("Select (max(PCAT_NO)) from AG_PROP_CATEGORY").Fields(0).Value, 0) + 1
+	SQL = "insert into AG_PROP_CATEGORY (PCAT_NAME, PCAT_NO) select 'Дополнительные начисления', " & CatNO
+	DB.Execute SQL
+End If
+
+Set Rs = DB.OpenRecordset("select pcat_id from AG_PROP_CATEGORY where pcat_name='Дополнительные начисления'")
+
+If Not Rs.EOF Then
+	CatID = Rs.Fields(0).Value
+
+	AddAgProp DB, CatID, "Выслуга лет"
+	AddAgProp DB, CatID, "Вредность"
+	AddAgProp DB, CatID, "Участковый"
+	AddAgProp DB, CatID, "Заведование"
+	AddAgProp DB, CatID, "Категория"
+Else
+	MsgBox "Ошибка создания категории", vbExclamation, "Внимание !"
+End If
+
+Function 	AddAgProp(DB, CatID, PropName)
+	Dim Rs, PropNo
+	
+	Set Rs = DB.OpenRecordset("select prop_id from ag_prop_names where prop_name='" & PropName & "'")
+
+	If Rs.EOF Then
+		PropNo = checknull(DB.Openrecordset("select max(prop_no) from ag_prop_names where pcat_id=" & CatID).Fields(0).Value, 0) + 1
+		SQL = "insert into AG_PROP_NAMES (pcat_id, prop_no, prop_name, node_type, prop_type) "
+		SQL = SQL & "select " & CatID & _
+					", " & PropNo & ",'" & PropName & "', 3, 106"
+
+		DB.Execute SQL
+		Set Rs = DB.OpenRecordset("select prop_id from ag_prop_names where prop_name='" & PropName & "'")
+
+		If Rs.EOF Then
+			MsgBox "Ошибка создания свойства: " & PropName, vbExclamation, "Внимание !"
+		End If
+	End If
+End Function

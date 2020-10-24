@@ -1,0 +1,63 @@
+'==============================================
+'					И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : Impact Group Ltd.
+'= Код    : 001 Основная зарплата
+'= Метод  : Должностной оклад (часы)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	With Tr
+		bOk = True
+		If .GHours = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage("Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage("Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage("Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		.Sum = Round2(.Tariff / .GHours * .Hours , 2) 
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub	
+
+		If .Agent.Prop("Дата приема")>.wperiod.lastday Then 
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday) > 0 Then
+			.AgID = 0
+			Exit Sub
+		End If
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		If .ghours = 0 Then
+'			Получаем график и факт
+			Global_SetHours Tr, True, True, .wperiod
+		Else
+'			Получаем график
+			Global_SetHours Tr, False, True, .wperiod
+		End If
+		.Sum1 = .Agent.Prop("Премия, %")
+		SetDb(Tr)
+	End With
+End Sub

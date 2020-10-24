@@ -1,0 +1,218 @@
+'-----------
+'	Идеал 028
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+
+	AddNewCode
+	ChangeScriptCode
+	RenameCode
+	DeleteDepends
+
+	Addfolder
+	ChangeGlobalScript
+
+	If Not AddAgProps("Коды и признаки", "Признак льготы на детей", 3, 11) Then
+		Updater.Fail = True
+		Updater.WriteLog "Ошибка добавления свойства корреспондента."
+		Exit Sub
+	End If
+
+
+	MsgBox "Перед установкой следующего обновления необходимо перезапустить программу.", vbInformation, "Акцент 7. Установка обновления"
+End Sub
+
+'-------
+'
+'-------
+Sub DeleteDepends
+	Dim i
+	Dim Code
+	Dim codeDeps
+
+	Set Code = WorkArea.Code(WorkArea.GetCodeID("3020"))
+	Set codeDeps = Code.Depends
+
+	For i = 1 To codeDeps.Count
+		Code.RemoveDependency codeDeps.Item(i).ID
+	Next
+		
+End Sub
+
+'-------
+'
+'-------
+Sub ChangeGlobalScript
+	Dim Fld
+	Dim i
+
+	Set Fld = Workarea.Code(GetFolderID(WorkArea.Codes, "_Глобальные модули")).Children
+
+	For i = 1 To Fld.Count
+		With Fld.Item(i)
+			If .Name = "Общие подпрограммы" Then
+				.SetScriptFromfile "Общие подпрограммы.mtd"
+			End If
+		End With
+	Next
+
+End Sub
+'-------
+'
+'-------
+Sub Addfolder
+	Dim Fld
+	Dim Frm
+	Dim fldID
+
+	With WorkArea.ProjectItems(1)
+		Set Frm = .Create("Аванс (развернуто)", "Идеал_Аванс_развернуто.afm")
+	End With
+
+	With WorkArea.Folder(GetFolderID(WorkArea.Folders, "Выплаты")).Children
+		Set Fld = .Create("Аванс развернуто")
+		Fld.FormID = Frm.ID
+		Fld.Save
+	End With
+
+	With WorkArea.ProjectItems(1)
+		Set Frm = .Create("Идеал обязательные удержания c 010906", "Идеал_Обязательные удержания c 010906.afm")
+	End With
+
+	fldID = GetFolderID(WorkArea.Folders, "Обязательные с 05.04")
+
+	If FldID = 0 Then
+		MsgBox "Не обнаружена папка документов ""Обязательные с 05.04"". Форма ""Идеал_Обязательные удержания c 010906.afm"" подключена только в проекте.", vbExclamation, "Программа установки обнвления"
+	Else
+		With WorkArea.Folder(fldID)
+			.FormID = Frm.ID
+			.Save
+		End With
+	End If
+
+End Sub
+'-------
+'
+'-------
+Sub RenameCode
+	With WorkArea.Code(WorkArea.GetCodeID("3020"))
+		.Name = "Выплата аванса"
+		.Save
+	End With
+
+	With WorkArea.Code(WorkArea.GetCodeID("3020m"))
+		.Name = "Выплата аванса"
+		.Save
+	End With
+End Sub
+
+'-------
+'
+'-------
+Sub AddNewCode
+	Dim NewCode
+	Dim NewCode2
+	Dim RootCode
+	Dim Flag
+	Dim temp
+
+	Set RootCode = WorkArea.Code(GetFolderID(WorkArea.Codes, "21 Обязательные")).Children
+
+	AddMethod RootCode, "0801", "Льгота", 102, 0, NewCode
+	AddMethod NewCode.Children, "0801-01", "Льгота по подоходному налогу", 200, 2, NewCode
+	NewCode.SetScriptFromFile "0801-01 Льгота по подоходному налогу.mtd"
+
+	AddMethod RootCode, "2100а", "Подоходный налог (аванс)", 102, 0, NewCode
+	AddMethod NewCode.Children, "2100а-п", "Подоходный налог (аванс)", 200, 2, NewCode
+	NewCode.SetScriptFromFile "2100а-п Подоходный налог (аванс).mtd"
+
+	AddMethod RootCode, "2110а", "Пенсионный фонд (аванс)", 102, 0, NewCode
+	AddMethod NewCode.Children, "2110а-1", "Пенсионный фонд 1% (аванс)", 200, 2, NewCode2
+	NewCode2.SetScriptFromFile "2110а-1 Пенсионный фонд 1% (аванс).mtd"
+
+	AddMethod NewCode.Children, "2110а-2", "Пенсионный фонд 2% (аванс)", 200, 2, NewCode
+	NewCode.SetScriptFromFile "2110а-2 Пенсионный фонд 2% (аванс).mtd"
+
+	AddMethod RootCode, "2120а", "Соцстрах (аванс)", 102, 0, NewCode
+	AddMethod NewCode.Children, "2120а-1", "Соцстрах 1% (аванс)", 200, 2, NewCode2
+	NewCode2.SetScriptFromFile "2120а-1 Соцстрах 1% (аванс).mtd"
+
+	AddMethod NewCode.Children, "2120а-05", "Соцстрах 0.5% (аванс)", 200, 2, NewCode
+	NewCode.SetScriptFromFile "2120а-05 Соцстрах 0.5% (аванс).mtd"
+
+	AddMethod RootCode, "2130а", "Безработица (аванс)", 102, 0, NewCode
+	AddMethod NewCode.Children, "2130ав", "Безработица (аванс)", 200, 2, NewCode2
+	NewCode2.SetScriptFromFile "2130а Безработица (аванс).mtd"
+
+	Set Temp = WorkArea.Code(GetFolderID(WorkArea.Codes, "21 Обязательные")).Nested
+
+	Set RootCode = WorkArea.Code(GetFolderID(WorkArea.Codes, "01 Основные")).Children
+
+	AddMethod RootCode, "0117", "Аванс", 101, 0, NewCode
+	AddMethod NewCode.Children, "0117-01", "Начислен аванс", 200, 2, NewCode2
+	NewCode2.SetScriptFromFile "0117-01 Начислен аванс.mtd"
+
+	Set Temp = WorkArea.Code(GetFolderID(WorkArea.Codes, "01 Основные")).Nested
+
+End Sub
+'-------
+'
+'-------
+Sub ChangeScriptCode
+	With WorkArea
+		.Code(.GetCodeID("0110ч")).SetScriptFromFile "0110ч Должностной оклад (часы).mtd"
+		.Code(.GetCodeID("2100п")).SetScriptFromFile "2100п Подоходный налог (13%).mtd"
+		.Code(.GetCodeID("2102m")).SetScriptFromFile "2102m Подоходный Аванс.mtd"
+		.Code(.GetCodeID("2110п")).SetScriptFromFile "2110п Пенсионный 2%.mtd"
+		.Code(.GetCodeID("2111w")).SetScriptFromFile "2111w Пенсионный 1%.mtd"
+		.Code(.GetCodeID("2114m")).SetScriptFromFile "2114m Пенсионный Аванс.mtd"
+		.Code(.GetCodeID("2120п")).SetScriptFromFile "2120п Соцстрах 1%.mtd"
+		.Code(.GetCodeID("2130w")).SetScriptFromFile "2130w Соцстрах 0,5%.mtd"
+		.Code(.GetCodeID("2130п")).SetScriptFromFile "2130п Безработица.mtd"
+		.Code(.GetCodeID("2131w")).SetScriptFromFile "2131w Соцстрах до 010504.mtd"
+		.Code(.GetCodeID("2132m")).SetScriptFromFile "2132m Соцстрах Аванс.mtd"
+		.Code(.GetCodeID("2133m")).SetScriptFromFile "2133m Безработица Аванс.mtd"
+		.Code(.GetCodeID("2140w")).SetScriptFromFile "2140w Проф. взнос 1%.mtd"
+		.Code(.GetCodeID("2142m")).SetScriptFromFile "2142m Проф. взнос Аванс 1%.mtd"
+		.Code(.GetCodeID("0520п")).SetScriptFromFile "0520п Отпускные будущего периода.mtd"
+		.Code(.GetCodeID("3020m")).SetScriptFromFile "3020m Аванс.mtd"
+
+	End With
+End Sub
+'-------
+'
+'-------
+Function GetFolderID(Root, FolderName)
+	Dim i
+	Dim FolderID
+
+	For i = 1 To Root.Count
+		With Root.Item(i)
+			If .Type = 0 Then
+				If .Name = FolderName Then
+					GetFolderID = .ID
+					Exit Function
+				Else
+					If .HasChildren Then 
+						FolderID = GetFolderID(.Children, FolderName)
+						If FolderID <> 0 Then
+							GetFolderID = FolderID
+							Exit Function
+						End If
+					End If
+				End If
+			End If
+		End With
+	Next
+
+	GetFolderID = 0
+
+End Function

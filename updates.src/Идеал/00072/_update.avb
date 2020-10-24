@@ -1,0 +1,174 @@
+'-----------
+'	Идеал 072
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2013
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "c:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+
+	End Sub
+
+End Class
+
+Dim updater
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	AddNewCode updater
+	AddFormToFolder "Приказы", "Приказ на неоплачиваемый отпуск", "Идеал_Приказ_Отпуск_БС", updater
+	AddTrParams updater
+
+	If Not updater.fail Then 
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "072.htm"
+		End If
+	Else
+		MsgBox "В процессе установки обновления произошли ошибки." & vbNewLine & _
+					"Смотрите в log-файле более детальную информацию.", vbCritical, "Акцент. Установка обновлений"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub AddTrParams(updater)
+	Dim Op, Tr
+
+	Set Op = Workarea.CreateDocument
+	Set Tr = Op.TransRM(1, 1)
+
+	With Tr.Params
+		If Not .Exists("Long4") Then .Create vbLong, "Long4"
+		If Not .Exists("Long5") Then .Create vbLong, "Long5"
+		If Not .Exists("Long6") Then .Create vbLong, "Long6"
+	End With
+
+End Sub
+'----
+'
+'----
+Sub AddFormToFolder(FldNameRoot, FldName, ProjFileName, updater)
+	Dim FldRoot, Fld, ProjItem
+
+	Set FldRoot = FindFolder(UCase(FldNameRoot), Workarea.Folders)
+
+	If FldRoot Is Nothing Then
+		Set FldRoot = Workarea.Folders.Create(FldNameRoot)
+	End If
+
+	Set Fld = FindFolder(UCase(FldName), Workarea.Folders)
+
+	If Fld Is Nothing Then
+		Set Fld = FldRoot.Children.Create(FldName)
+	End If
+
+	Set ProjItem = Workarea.ProjectItems(1).FindFile(ProjFileName & ".afm")
+	If ProjItem Is Nothing Then
+		Set ProjItem = workarea.ProjectItems(1).Create(ProjFileName, ProjFileName & ".afm")
+	End If
+
+	Fld.FormID = ProjItem.ID
+	Fld.Save
+
+End Sub
+'----
+'
+'----
+Function FindFolder(FolderName, FolderRoot)
+	Dim i, Fld
+
+	Set Fld = Nothing
+
+	For i = 1 To FolderRoot.Count
+		With FolderRoot.Item(i)
+			If UCase(.name) = FolderNAme Then
+				Set Fld = FolderRoot.Item(i)
+				Exit For
+			Else
+				If .HasChildren Then
+					Set Fld = FindFolder(FolderName, .Children)
+					If Not Fld Is Nothing Then Exit For
+				End If
+			End If
+		End With
+	Next
+
+	Set FindFolder = Fld
+
+End Function
+'----
+'
+'----
+Sub AddNewCode(updater)
+	Dim Fld, NewCode, NewCodeRoot, NewCodeRootID
+
+	If Workarea.GetCodeID("8002") <> 0 Then Exit Sub
+	Set Fld = FindCodeFolder("Приказы", Workarea.Codes)
+
+	If Not Fld Is Nothing Then
+		NewCodeRootID = Workarea.GetCodeID("8001")
+
+		If NewCodeRootID = 0 Then
+			Set NewCodeRoot = Fld.Create(101, "8001", "Приказы на неоплачиваемый отпуск")
+		Else
+			Set NewCodeRoot = Workarea.Code(NewCodeRootID)
+		End If
+	
+		If NewCodeRoot Is Nothing Then
+			updater.wtitelog "Невозможно создать код начисления 8001"
+			updater.fail = True
+			Exit Sub
+		End If
+
+		Set NewCode = NewCodeRoot.Children.Create(200, "8002", "Приказ на неоплачиваемый отпуск")
+		
+		If NewCode Is Nothing Then
+			updater.wtitelog "Невозможно создать метод начисления 8002"
+			updater.fail = True
+			Exit Sub
+		End If
+	Else
+		updater.wtitelog "Невозможно создать папку кодов начисления"
+		updater.fail = True
+	End If
+
+End Sub
+'----
+'
+'----

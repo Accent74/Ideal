@@ -1,0 +1,158 @@
+Option Explicit
+
+Const ROOT_URL = "http://accentsupport.com.ua/"
+
+Dim StdApps
+
+'---
+'
+'---
+Sub Main
+	Dim Configs, RD, AUPPath
+	Dim Updates
+
+	Set Configs = CreateObject("Scripting.Dictionary")
+	Set RD = CreateLibObject("Redirect")
+	Set StdApps = CreateObject("Scripting.Dictionary")
+
+	AddStdApps
+
+	AUPPath = RD.GetPathArray("*.aup")
+
+	If UBound(AUPPath) > -1 Then
+		LoadConfigs Configs
+		LoadUpdates Configs, Updates, AUPPath(0)
+
+		If Updates.Count > 0 Then
+			DownLoadFiles Updates
+		End If
+	End If
+End Sub
+'---
+'
+'---
+Sub AddStdApps
+	StdApps.Add "A3D", "A7dao_upd"
+	StdApps.Add "A3M", "A7sql_upd"
+	StdApps.Add "A3S", "A7sql_upd"
+	StdApps.Add "A8D", "A74dao_upd"
+	StdApps.Add "A8M", "A74sql_upd"
+	StdApps.Add "A8S", "A74sql_upd"
+End Sub
+'---
+'
+'---
+Sub DownLoadFiles(Updates)
+	Dim DHTML
+
+	Set DHTML = CreateLibObject("DHTMLDialog")
+
+	With Workarea.Map 
+		Set .Item("updUpdates") = Updates
+		Set .Item("updDHTML") = DHTML
+		Set .Item("updoStream") = CreateObject("ADODB.Stream")
+	End With
+
+	With DHTML
+		.URL = CreateLibObject("Redirect").GetFullPath("updatesload.htm")
+		.SetArgument "WA", App.Workarea
+		.resizable = True
+		.height = 200
+		.width = 350
+		.CreateModeless
+	End With
+
+End Sub
+'---
+'
+'---
+Sub LoadConfigs(Configs)
+	Dim i, UsrPrm
+
+	For i = 1 To 10
+		UsrPrm = Workarea.Userparam("CONFIG_CODE" & i)
+		If Not IsNull(UsrPrm) Then
+			Configs.Add UsrPrm, Array(Workarea.Userparam("CONFIG_VERSION" & i), Workarea.Userparam("CONFIG_NAME" & i))
+		End If
+	Next
+
+	Configs.Add token(App.LicenseCode, 1, "."), Array(Int(token(App.Version, 3, ".")), token(App.LicenseCode, 1, "."))
+
+End Sub
+'---
+'
+'---
+Sub LoadUpdates(Configs, Updates, AUPPath)
+	Dim XMLHTTP, i, keys, nVerStart
+	Dim VersionMap, sURL, j
+	Dim DownloadURL, FileName
+
+	Set XMLHTTP = CreateObject("Msxml2.XMLHTTP")
+	Set Updates = CreateObject("Scripting.Dictionary")
+	Set VersionMap = CreateLibObject("Map")
+
+	AUPPath = AUPPath & iif(Right(AUPPath, 1) <> "\", "\", "")
+
+	If Not XMLHTTP Is Nothing Then 
+		sURL = ROOT_URL & "checkupdversion.aspx?" & App.LicenseCode
+		keys = Configs.keys
+
+		For i = 0 To UBound(keys)
+			Call XMLHTTP.open("GET", sURL & "&" & keys(i), False)			
+
+			On Error Resume Next
+
+			Call XMLHTTP.send(Nothing)
+
+			If err.number = 0 Then
+				If XMLHTTP.responseText <> "" Then 
+					VersionMap.RemoveAll
+					VersionMap.xml = XMLHTTP.responseText
+
+					If err.number = 0 And VersionMap("min") <> "" And VersionMap("max") <> "" Then
+						If Int(VersionMap("max")) > Configs(keys(i))(0) Then
+
+							nVerStart = iif(Int(VersionMap("max")) = Int(VersionMap("min")), Int(VersionMap("min")), Configs(keys(i))(0))
+
+							For j = nVerStart To Int(VersionMap("max"))
+								If StdApps.Exists(keys(i)) Then
+									FileName = AUPPath & StdApps(keys(i)) & ".msi"
+								Else
+									FileName = AUPPath & Configs(keys(i))(1) & "_" & strzero(j, 5) & ".aup"			
+								End If
+
+								If Not isFileExists(FileName) Then
+									DownloadURL = ROOT_URL & "downloadupdate.aspx?" & App.LicenseCode & "&" & _
+																															keys(i) & "&" & strzero(j, 3)
+									Updates.Add Updates.Count + 1, Array(DownloadURL, FileName, keys(i))
+								End If
+							Next
+						End If
+					End If
+				End If
+			End If
+
+			Err.Clear
+		Next
+	End If
+End Sub
+'---
+'
+'---
+Function StrZero(Str, Num)
+	Dim StrLen
+
+	StrLen = Len(Str)
+
+	If StrLen > Num Then
+		StrZero = Right(Str, Num)
+	ElseIf StrLen < Num Then
+		StrZero = String(Num - StrLen, "0") & Str
+	Else
+		StrZero = Str
+	End If
+
+End Function
+'---
+'
+'---

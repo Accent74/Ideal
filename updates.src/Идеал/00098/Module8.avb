@@ -1,0 +1,86 @@
+Option Explicit
+
+'#include "ST74_ADO.avb"
+'#include "definition.avb"
+
+stop
+update_p_journal
+
+'---
+'
+'---
+Sub update_p_journal
+	Dim Rs, SQL
+	Dim Date1, Date2, DocID, Date3, gDays
+
+	SQL = "SELECT P_JOURNAL.PD_ID, P_JOURNAL.JP_ID, P_JOURNAL.JP_D1, P_JOURNAL.JP_D2 " & _
+			"FROM P_PERIOD INNER Join (MTD_CODES INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+			"WHERE (((P_PERIOD.PP_YEAR)>2013) And ((P_JOURNAL.JP_SUM)<>0) And (([MTC_ID] In (Select id from mtd_tree where [MtdFolderID] In(p0, p2, p3, p4, p5, p6, p7)))=True)) " & _
+			"ORDER BY P_JOURNAL.PD_ID, P_PERIOD.PP_YEAR, P_PERIOD.PP_MONTH;"
+
+	SQL = Replace(SQL, "[MtdFolderID]", "84")
+
+	Set Rs = GetRs(SQL)
+	DocID = 0
+
+	While Not Rs.eof
+		DocID = Rs.Fields(0).Value
+		Date1 = checknull(Rs.Fields(2).Value, 0)
+		Date2 = checknull(Rs.Fields(3).Value, 0)
+
+		If Date1 <> 0 And Date2 <> 0 Then
+			Date3 = Date2
+
+			If Month(Date1) <> Month(Date2) Or Year(Date1) <> Year(Date2)Then
+				Date2 = LastDayInMonth(Date1)
+			End If
+
+			gDays = CalcWorkDays(Date1, Date2)
+			update_record Rs.Fields(1).Value, date1, Date2, Date3, gDays
+
+			If Date3 <> Date2 Then
+				Rs.MoveNext
+
+				If Not Rs.eof Then
+					If DocID = Rs.Fields(0).Value Then
+						Date1 = FirstDayInMonth(Date)
+						Date2 = Date3
+						gDays = CalcWorkDays(Date1, Date2)						
+						update_record Rs.Fields(1).Value, date1, Date2, Date3, gDays
+					Else
+						Rs.MoveLast
+					End If
+				Else
+					Exit Sub
+				End If
+			End If
+		End If
+
+		Rs.MoveNext
+		
+	Wend
+End Sub
+'---
+'
+'---
+Sub update_record(JID, date1, Date2, Date3, gDays)
+	Dim SQL, QD
+
+	SQL = "parameters JID long, pd1 datetime, pd2 datetime, pd3 datetime, gdays long ; " & _
+			"update p_journal Set jp_d1=[pd1], jp_d2=[pd2], jp_d3=[pd3], JP_GDAYS=[gDays] " & _
+			"where JP_ID=[JID]"
+
+	Set QD = workarea.DAODAtaBase.CreateQueryDef("")
+	QD.SQL = SQL
+	QD.Parameters(0).Value = JID
+	QD.Parameters(1).Value = Date1
+	QD.Parameters(2).Value = Date2
+	QD.Parameters(3).Value = Date3
+	QD.Parameters(4).Value = gDays * 10
+
+	QD.Execute
+
+End Sub
+'---
+'
+'---

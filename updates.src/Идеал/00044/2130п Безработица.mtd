@@ -1,0 +1,78 @@
+'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:01:06
+'= Автор  : admin
+'= Код    : 2130 Безработица
+'= Метод  : Безработица
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum, TariffBefore
+
+	With Tr
+		If .wperiod.firstday = CDate("01/01/2009") Then
+			TariffBefore = CalcSumByPeriod(.AgID, .CodeID, CDate("01/01/2009"), CDate("12/01/2009"))
+			.Tariff = CalcSumByPeriod(.AgID, .CodeID, CDate("13/01/2009"), CDate("31/01/2009"))
+		Else
+			TariffBefore = 0
+			.Tariff = .DependsW.SumIN
+		End If
+
+		If Not (.Date1 <> 0.0 And .Date1 <= .wperiod.firstday) Then
+			CalcSum = CalcTaxSum(Tr, .Tariff, 0.6)
+			CalcSum = CalcSum + CalcTaxSum(Tr, TariffBefore, 0.5)
+		Else
+			If .wperiod.year = 2009 Then
+				CalcSum = CalcTaxSum(Tr, .Tariff, 0.6)
+			Else
+				CalcSum = 0
+			End If
+		End If
+
+		If TariffBefore <> 0 Then .Tariff = .Tariff + TariffBefore
+
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+
+Function CalcTaxSum(Tr, Tariff, TaxPercent)
+	Dim BaseSum, SumLookUp
+
+	With tr
+		SumLookUp = Round2(.LookUp.SumWD, 2)
+		If (.String1 ="07") Or (.Long2 Or .Long1) Then
+			CalcTaxSum = - SumLookUp
+		Else
+			If Tariff >= MAX_FOUND_CY Then 
+    	 		BaseSum = MAX_FOUND_CY 
+			Else
+				BaseSum = Tariff
+     	End If
+
+			CalcTaxSum = Round2(BaseSum * TaxPercent / 100.0, 2) - SumLookUp
+		End If
+	End With
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Long1 = .Agent.Prop(PROP_TRUD)
+
+			If .CPeriod.year < 2007 Then 
+				.Long2 = .Agent.Prop(PROP_DISAB)
+			Else
+				.Long2 = False
+			End If
+
+			.Date1 = .Agent.Prop(PROP_PENS)
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+		End If
+	End With
+
+End Sub
+

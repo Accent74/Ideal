@@ -1,0 +1,31 @@
+'-----------
+'	Идеал 023
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+
+Sub Main(Updater)
+	Dim NewCode
+	Dim i
+
+	With WorkArea
+		.Code(.GetCodeID("2100п")).SetScriptFromFile "2100п Подоходный налог (13%).mtd"
+		With .Code(.GetCodeID("2010"))
+			.Mode = 0
+			.Save
+		End With
+	End With
+
+	AddReport "ФСС ВПТ 2006", "ФСС ВПТ 2006.ash"
+
+	WorkArea.UserParam("CONFIG_DBVERSION1") = 23
+	ShowWhatsNew "WhatNewIdeal.chm", "023.htm"
+
+End Sub
+

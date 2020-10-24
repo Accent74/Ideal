@@ -1,0 +1,297 @@
+Option Explicit
+'---
+'
+'---
+Class XML
+
+	Public xml, xmlFileName, aErrorMsg, xsdFileName
+	Private xsd
+	'---
+	'
+	'---
+	Private Sub Class_initialize
+		Set xml = Nothing
+		Set xsd = Nothing
+
+		xmlFileName = ""
+		xsdFileName = ""
+
+		aErrorMsg = Array()
+	End Sub
+	'---
+	'
+	'---
+	Public Function Save(FileName, FileMask)
+		Dim RD, aPath, Path
+
+		Save = False
+		aErrorMsg = Array()
+
+		If InStr(FileName, "\") = 0 Then
+			Set RD = CreateLibObject("Redirect")
+
+			If IsFileExists(FileName) Then
+				FileName = RD.GetFullPath(FileName)
+			Else
+				aPath = RD.GetPathArray(FileMask)
+
+				If UBound(aPath) = -1 Then
+					aErrorMsg = Array("В настройках программа для файлов XML", "не установлен путь доступа")					
+					Exit Function
+				Else
+					Path = aPath(0)
+					If Right(Path, 1) <> "\" Then Path = Path & "\"
+
+					FileName = Path & FileName
+				End If
+			End If
+		End If
+
+		On Error Resume Next
+
+		xml.Save FileName
+
+		If Err.Number <> 0 Then
+			aErrorMsg = Array("Ошибка сохранения файла:", FileName, Err.Dscription, "(#", Err.Number, ")")
+		Else
+			Save = True
+		End If
+		
+	End Function
+	'---
+	'
+	'---
+	Public Function XSD_Validate(xmlFileToValidate)
+		Dim RD, xsdFilePath
+
+		XSD_Validate = False
+		If xmlFileToValidate = "" Then 	xmlFileToValidate = xmlFileName
+		aErrorMsg = Array()
+	
+		If xml Is Nothing Then	
+			aErrorMsg = Array("Объект XML не создан")
+		ElseIf xsdFileName = "" Then
+			aErrorMsg = Array("Файл схемы не установлен")
+		ElseIf Not IsFileExists(xsdFileName) Then
+			aErrorMsg = Array("Файл схемы :", xsdFileName, " не найден")
+		Else
+			Set RD = CreateLibObject("Redirect")
+			xsdFilePath = RD.GetFullPath(xsdFileName)
+
+			If xsdFilePath = "" Then
+				aErrorMsg = Array("Файл схемы:", xsdFileName, " не найден")
+			Else
+				xsdFileName = xsdFilePath
+			End If
+		End If
+
+		If UBound(aErrorMsg) = -1 Then 
+
+			If create() Then
+				If XsdAdd(xsdFileName) Then
+					Set xml.schemas = XSD
+					xml.Async = False
+					xml.ValidateOnParse = True	
+					xml.ResolveExternals = True
+	
+					xml.Load xmlFileToValidate
+	
+					If xml.parseerror.errorcode <> 0 Then
+						aErrorMsg = Array(xml.parseerror.reason)
+					Else
+						XSD_Validate = True
+					End If	
+				End If
+			End If
+		End If
+	
+	End Function
+	'---
+	'
+	'---
+	Function XsdAdd(xsdFileName)
+		On Error Resume Next
+
+		XSD.add "", xsdFileName
+
+		If Err.Number <> 0 Then
+			aErrorMsg = Array("Ошибка загрузки файла схемы:", xsdFileName, vbNewLine, err.description)
+		End If
+
+		XsdAdd = (Err.Number = 0)
+		Err.Clear
+	End Function
+	'---
+	'
+	'---
+	Public Function Create()
+		On Error Resume Next
+		Set xml = CreateObject("MSXML2.DOMDocument.6.0")
+
+		If Err.Number <> 0 Then
+			aErrorMsg = Array("Ошибка:", Err.Description, "(#", Err.Number, ")")
+			Set xml = Nothing
+		End If
+
+		Create = (Err.Number = 0) 
+		Err.Clear
+
+		Set XSD = CreateObject("Msxml2.XMLSchemaCache.6.0")
+		If Err.Number <> 0 Then
+			aErrorMsg = Array("Ошибка:", Err.Description, "(#", Err.Number, ")")
+			Set xml = Nothing
+		End If
+
+		Create = (Err.Number = 0) 
+
+	End Function
+	'---
+	'
+	'---
+	Public Function Load()
+		Dim RD
+
+		aErrorMsg = Array()
+
+		If xml Is Nothing Then
+			If Not Create() Then 
+				Load = False
+				Exit Function
+			End If
+		End If
+
+		If IsFileExists(xmlFileName) Then
+			If InStr(xmlFileName, "\") = 0 Then
+				Set RD = CreateLibObject("Redirect")
+				xmlFileName = RD.GetFullPath(xmlFileName)
+			End If
+
+			If xmlFileName <> "" Then
+				xml.Load xmlFileName
+
+				If xml.parseError.errorCode <> 0 Then
+					aErrorMsg = Array("Ошибка чтения XML файла :", xmlFileName, xml.parseError.reason)
+				End If
+	
+			Else
+				aErrorMsg = Array("Файл не найден:", xmlFileName)
+			End If
+		Else
+			aErrorMsg = Array("Файл не найден:", xmlFileName)
+		End If
+
+		Load = (UBound(aErrorMsg) = -1)
+
+	End Function
+	'---
+	'
+	'---
+	Public Property Get ErrorMsg
+		ErrorMsg = Join(aErrorMsg, " ")
+	End Property
+	'---
+	'
+	'---
+	Public Function GetTagDGDate(TagPath)
+		Dim TagValue, Tag
+
+		Set Tag = xml.documentElement.selectNodes(TagPath).item(0)
+
+		If Not Tag Is Nothing Then
+			TagValue = Tag.text
+		Else
+			TagValue = ""
+		End If
+
+		If Not IsNumeric(TagValue) Then 
+			GetTagDGDate = CDate(0)
+		Else
+			GetTagDGDate = DateSerial(Right(TagValue, 4), Mid(TagValue, 3, 2), Left(TagValue, 2))
+		End If
+	End Function
+	'---
+	'
+	'---
+	Public Function GetTagText(TagPath)
+		Dim TagValue, Tag
+
+		Set Tag = xml.documentElement.selectNodes(TagPath).item(0)
+
+		If Not Tag Is Nothing Then
+			GetTagText = Tag.text
+		Else
+			GetTagText = ""
+		End If
+
+	End Function
+	'---
+	'
+	'---
+	Public Function GetTagInt(TagPath)
+		Dim TagValue, Tag
+
+		Set Tag = xml.documentElement.selectNodes(TagPath).item(0)
+
+		If Not Tag Is Nothing Then
+			TagValue = Tag.text
+		Else
+			TagValue = "0"
+		End If
+
+		If Not IsNumeric(TagValue) Then 
+			GetTagInt = 0
+		Else
+			GetTagInt = CLng(TagValue)
+		End If
+	End Function
+	'---
+	'
+	'---
+	Public Function GetTagCur(TagPath)
+		Dim TagValue, Tag
+
+		Set Tag = xml.documentElement.selectNodes(TagPath).item(0)
+
+		If Not Tag Is Nothing Then
+			TagValue = Tag.text
+		Else
+			TagValue = "0"
+		End If
+
+		If Not IsNumeric(TagValue) Then 
+			GetTagCur = 0.0
+		Else
+			GetTagCur = CCur(TagValue)
+		End If
+	End Function
+	'---
+	'
+	'---
+	Public Function GetTag(TagPath)
+		Set GetTag = xml.documentElement.selectNodes(TagPath)
+	End Function
+	'---
+	'
+	'---
+	Public Function cDig(cNum)
+		Dim Num
+
+		On Error Resume Next
+
+		Num = CCur(Replace(cNum, ".", ","))
+	
+		If Err.Number <> 0 Then
+			Num = CCur(Replace(cNum, ",", "."))
+		End If
+
+		Err.Clear
+
+		cDig = Num
+
+	End Function
+
+
+End Class
+'---
+'
+'---

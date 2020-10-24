@@ -1,0 +1,53 @@
+'-----------
+'	Идеал 042
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim FSO
+	Dim RD
+
+	Set FSO = CreateObject("Scripting.FileSystemObject")
+	Set RD = CreateLibObject("Redirect")
+	
+	CheckPath FSO, RD, "xml", "xml", updater
+	CheckPath FSO, RD, "ini", "ini", updater
+
+	msgbox "Для дальнейшей нормальной работы программы" & vbCrLf & _
+		"ее требуется перегрузить.", vbinformation, "Внимание !"
+
+End Sub
+
+Sub CheckPath(FSO, RD, Mask, MaskPath, updater)
+	Dim CheckPaht
+	Dim aPath, fld
+
+	aPath = RD.GetPathArray(Mask)
+
+	If UBound(aPath) = -1 Then
+		CheckPaht = RD.DbPath & "..\" & MaskPath
+
+		On Error Resume Next
+		Set fld = FSO.GetFolder(CheckPaht)
+
+		If err.Number <> 0 Then
+			Err.Clear
+			On Error Resume Next
+			Set fld = FSO.CreateFolder(CheckPaht)
+
+			If Err.Number <> 0 Then
+				updater.write Err.description
+				updater.fail = True
+			End If
+		End If
+
+		Err.Clear
+
+	End If
+End Sub

@@ -1,0 +1,30 @@
+'==============================================
+'= Акцент 7.0 
+'= Создан : 20/12/2005 14:14:19
+'= Автор  : admin
+'= Код    : 2140 Проф. взнос
+'= Метод  : Проф. взнос Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		.Tariff = .DependsW.Sum
+		CalcSum = .Tariff * .Sum2 / 100
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+	End With
+
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			If .Agent.Prop("Профсоюз") Then
+				.Sum2 = 1	' 1% 		ставка налога
+			Else
+				.Sum2 = 0
+			End If
+		End If
+	End With
+End Sub

@@ -1,0 +1,141 @@
+'-----------
+'	Идеал 083
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "definition.avb"
+
+Const CURR_YEAR = 2014
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+
+	UpgradeForms updater
+	updatemethods updater
+
+	If Not updater.fail Then
+		If MsgBox("Показать что нового в программе ?", vbInformation + vbOKCancel, "Акцент-заработная плата Идеал") = vbOK Then
+			ShowWhatsNew "WhatNewIdeal.chm", "083.htm"
+		End If
+	Else
+		MsgBox "Ошибки при установке обновления. Подробности в файле протокола установки.", vbCritical, "Ошибка установки"
+	End If
+
+End Sub
+'----
+'
+'----
+Sub UpgradeForms(updater)
+	Dim FldRootID, FldRoot
+
+	If updater.fail Then Exit Sub
+
+	AddFormAndFolder "Выплаты", "1. Аванс развернуто c 03.08.14", "Идеал_Аванс_развернуто с 03082014", updater
+	AddFormAndFolder "Выплаты", "2. Аванс развернуто c 03.08.14 (сумма вручную)", "Идеал_Аванс_развернуто с 03082014 (сумма вручную)", updater
+	AddFormAndFolder "Выплаты", "3. Аванс развернуто c 03.08.14 (шахтеры)", "Идеал_Аванс_развернуто с 03082014 (шахтеры)", updater
+
+	FldRootID = FindFolderID("Выплаты", workarea.folders)
+
+	If FldRootID = 0 Then
+		Set FldRoot = Workarea.Folders
+	Else
+		Set FldRoot = workarea.folder(FldRootID).Children
+	End If
+
+	MoveFolder "Аванс развернуто с 01012011", "Архив", FldRoot, updater
+	MoveFolder "Аванс развернуто с 01012011 (сумма вручную)", "Архив", FldRoot, updater
+	MoveFolder "Аванс развернуто с 01012011 (шахтеры)", "Архив", FldRoot, updater
+	MoveFolder "Аванс развернуто", "Архив", FldRoot, updater
+	MoveFolder "Аванс", "Архив", FldRoot, updater
+
+End Sub
+'----
+'
+'----
+Sub MoveFolder(FldName, ArchName, FldRoot, updater)
+	Dim FldID, ArchID, ArchFld
+
+	FldID = FindFolderID(FldName, FldRoot)
+
+	If FldID = 0 Then
+		updater.writelog "Внимание ! Папка " & FldName & " не найдена"
+		Exit Sub
+	End If
+
+	ArchID = FindFolderID(ArchName, FldRoot)
+
+	If ArchID = 0 Then
+		Set ArchFld = FldRoot.Create("Архив")
+		ArchID = ArchFld.ID
+	End If
+
+	MoveOneFolder FldID, ArchID
+	updater.writelog "Папка " & FldNAme & " перемещена в папку " & ArchNAme
+
+End Sub
+'----
+'
+'----
+Sub updatemethods(updater)
+	Dim CodeID
+
+	CodeID = Workarea.GetCodeID("3020m")
+
+	If CodeID <> 0 Then
+		updatemethod CodeID, "3020m Выплата аванса.mtd", updater
+	Else
+		updater.writelog "Внимание ! Не найден код 3020m для обновления"
+	End If
+
+End Sub
+'----
+'
+'----
+
+
+
+
