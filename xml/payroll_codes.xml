@@ -1,0 +1,3982 @@
+<payroll name="Идеал" version="93" created="23/04/2015 43:10"><codes><folder name="_Глобальные модули"><file name="Общие подпрограммы" filename="">'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Автор  : "Импакт"
+'==============================================
+'= Глобальный модуль
+'= Автоматически связывается со всеми методами
+'==============================================
+Sub Global_SetHours(ByRef Tr, b1, b2, dat)	
+	If Not b1 And Not b2 Then Exit Sub
+	With Tr
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+ 		Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+		If tt Is Nothing Then Exit Sub
+		If b1 Then .Hours = tt.Hours(dat.firstday)
+		If b2 Then .GHours = tt.Hours(dat.firstday)
+	End With
+End Sub
+
+'==============================================
+Sub Global_SetDays(ByRef Tr, b1, b2, dat)
+	Dim TotalDays
+
+  If Not b1 And Not b2 Then Exit Sub
+
+  With Tr
+  		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+     Set tt = Workarea.TimeTable(.Agent.Prop(PROP_GRAPH_TAG))
+     If tt Is Nothing Then Exit Sub
+
+     TotalDays = tt.Days(dat.firstday)
+		If b1 Then .GDays = TotalDays   
+
+   	With .Agent
+			TotalDays = CheckAgDays(.DateIn, .DateOut, Dat, tt, TotalDays, tr)	
+		End With
+
+    	If b2 Then .Days = TotalDays
+	End With
+End Sub
+
+'==============================================
+Sub SetDb(ByRef Tr)
+	Dim Ag
+
+	Set Ag = Nothing
+
+	With Tr
+		If .DbCode &lt;&gt; "" Then .Long1 = iif(IsNumeric(.DbCode), .DbCode, 0)
+		If .Long1 &lt;&gt; 0 Then Exit Sub
+
+		If .Code.DbCode &lt;&gt; "" Then
+			.Long1 = iif(IsNumeric(.Code.DbCode), .Code.DbCode, 0)
+		ElseIf .Agent.Prop(PROP_DB) &gt; 0 Then
+			.long1 = .Agent.Prop(PROP_DB)
+		ElseIf .orgid &gt; 0 Then
+			Set Ag = workarea.agent(.orgID).params
+		Else
+			Set Ag = workarea.agent(.AgID).params
+		End If
+		
+		If Not Ag Is Nothing Then
+			If Ag.Exists(PRM_DB) Then .long1 = Ag.Item(PRM_DB).value2
+		End If
+
+	End With
+End Sub
+
+'==============================================
+Function GetSumP(c) ' сумма положительных
+	Dim i
+	Dim cy
+	cy = 0
+	For i = 1 To c.Count
+		With c.Item(i)
+			If .Code.Type = 101 Then
+				cy = cy + .Sum
+			End If
+		End With
+	Next
+	GetSumP = cy
+End Function
+
+'==============================================
+' Результат - сумма по указанному коду для корреспондента в текущем рабочем периоде
+' Используется в Подоходном
+Function GetSumByCode(agID, codeID)
+	Dim rez
+	rez = 0
+	Dim rs
+	Set rs = App.WorkArea.DAODataBase.OpenRecordset( _
+		"SELECT JP_SUM FROM P_JOURNAL WHERE JP_DONE = 1 " &amp; _
+			"And AG_ID = " &amp; agID &amp; _
+			" AND W_PERIOD = " &amp; WorkArea.Period.ID &amp; _
+			" AND MTC_ID = " &amp; codeID )
+	If Not rs.eof	Then _
+		rez = rs.fields("JP_SUM")		
+	GetSumByCode = rez
+End Function
+
+'==============================================
+Function CheckAgDays(dIn, dOut, dat, tt, TotalDays, tr)
+  	Dim CheckStart, CheckEnd, DayStart, DayEnd
+  	Dim aDays, i, maxdays, FlagStart, CountDays
+  	Dim DocDate
+
+	If Not Tr.PDocument Is Nothing Then
+		DocDate = Tr.PDocument.Date
+	Else
+		DocDate = 0
+	End If
+
+	CheckStart = (Dat.month = Month(dIn) And Dat.Year = Year(dIn))
+  	CheckEnd = (Dat.month = Month(dOut) And Dat.Year = Year(dOut))
+
+	If CheckStart Or CheckEnd Then
+  		DayStart = Day(dIn)
+    	DayEnd = Day(dOut)
+
+    	If (DayStart = DayEnd) And CheckStart And CheckEnd Then
+     	CheckAgDays = 1
+       Exit Function
+    	Else
+
+			With WorkArea.MonthCalendar(dat.Month, Dat.Year)
+				aDays = .WeekDaysArray(2)
+  	     	FlagStart = Not CheckStart
+		     CountDays = 0
+				maxdays = .DaysCount(0) + .DaysCount(1) + .DaysCount(2) - 1
+			End With
+
+  	   	For i = 0 To maxdays
+     		If CheckStart Then FlagStart = (DayStart &lt;= (i + 1))
+
+       			If FlagStart Then
+          		If aDays(i) = 0 Then CountDays = CountDays + 1
+	         	End If
+
+  	       		If CheckEnd Then
+          		If DayEnd = (i + 1) Then Exit For
+         		End If
+    		Next
+
+			With WorkArea.TimeTable(Tr.Agent.Prop("График"))
+				maxDays = .Days(tr.wperiod.firstday)
+			End With
+
+     	CheckAgDays = iif(CountDays &gt; maxDays, maxDays, CountDays)
+  		End If
+  Else
+		If Year(DocDate) = 2009 And Month(DocDate) = 1 Then
+			If DocDate &lt; CDate("13/01/2009") Then
+				CheckAgDays	= 6
+			Else
+				CheckAgDays	= 14
+			End If
+		Else
+	  		CheckAgDays = TotalDays
+		End If
+  End If
+
+End Function
+
+'==============================================
+Function IsAgDismiss(Ag, TrPeriod)
+	Dim mm, yy
+	Dim DateOut
+
+	If IsNull(Ag.Prop(PROP_UVOLEN)) Then
+		IsAgDismiss = False
+	Else
+		DateOut = Ag.Prop(PROP_UVOLEN)
+		mm = Month(DateOut)
+		yy = Year(DateOut)
+		IsAgDismiss = Month(TrPeriod.firstday) = mm And Year(TrPeriod.firstday) = yy
+	End If
+
+End Function
+'==============================================
+
+Function EnumIDByName(EnumID, EnumName)
+	Dim i
+	Dim En
+
+	Set En = WorkArea.Enum(CLng(EnumID))
+
+	For i = 1 To En.Count
+		If En.ItemName(i) = EnumName Then
+			EnumIDByName = En.ItemID(i)
+		End If
+	Next
+	
+End Function
+'==============================================
+</file><file name="Определения" filename="definition.avb">'==============================================
+'	И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/02/2005 15:20
+'= Автор  : Alib Ezbar
+'==============================================
+'= Глобальный внешний модуль
+'==============================================
+
+' Названия свойств
+'==============================================
+Const PROP_SALARY_TAG			= "Оклад"
+Const PROP_PERHOUR_TAG		= "Тариф за час"
+Const PROP_GRAPH_TAG			= "График"
+Const PROP_DISQUANT_TAG		= "Признак льготы"
+Const PROP_DISQUANT_CHILD_TAG = "Признак льготы на детей"
+
+Const PROP_ADD_LGT				= "Увеличивать макс. льготный доход"
+Const PROP_DISDOHOD_TAG		= "Признак дохода"
+Const PROP_DB						= "Счёт затрат"
+Const PROP_DISCHILD_TAG		= "Количество детей"
+Const PROP_ALI						= "Процент алиментов"
+Const PROP_PENS					= "Дата выхoда на пенсию"
+Const PROP_UVOLEN				= "Дата увольнения"
+Const PROP_DISAB					= "Инвалид"
+Const PROP_TRUD					= "Трудовой договор"
+' для ЗАМЕЩЕНИЯ
+Const PROP_HOURS_ZAM 			= "Часы замещения"
+Const PROP_AG_ZAM 				= "Кого замещаем"
+Const PROP_FZAM1_TAG			= "С"
+Const PROP_TZAM1_TAG			= "По"
+Const PROP_PZAM_TAG				= "% Оклада"
+Const PROP_OZAM_TAG				= "Приказ"
+
+' Названия параметров подразделений
+'==============================================
+Const PRM_DB						=	"Счёт затрат"
+
+' Перечисления
+'==============================================
+Const ENUM_DISCOUNT				= 6 ' Перечисление "Признак льготы"
+Const ENUM_DISDOHOD				= 2 ' Перечисление "Признак дохода"
+
+' Пользовательские таблицы
+'==============================================
+Dim USRTBL_INID				
+USRTBL_INID = workarea.GetSysUTableID("ДПЛ") ' Таблица "Размеры доплат"
+
+Const USRTBL_NIGHT				= "Ночные"
+Const USRTBL_EVENING			= "Вечерние"
+Const USRTBL_OVERTIME			= "Сверхурочные"
+Const USRTBL_HOLIDAY			= "Праздничные"
+Const PROP_TRADE					= "Трудовое соглашение"
+'----------------------------------------------
+Dim USRTBL_LGT
+USRTBL_LGT = workarea.GetSysUTableID("ПДТ") ' Таблица "Подоходный налог"
+
+Const USRTBL_DPAY				= "Размер льготы"
+Const USRTBL_DLTM				= "Максимальный льготный доход"
+Const USRTBL_MINLIF				= "Прожиточный минимум"
+Const USRTBL_MAXCY				= "Максимальный доход"
+Const USRTBL_ECB					= "Ставка ЕСВ, %"
+Const USRTBL_MAX_TAX			= "Максимальный доход для НДФЛ"
+'----------------------------------------------
+Dim USRTBL_ONE
+USRTBL_ONE = workarea.GetSysUTableID("КОД") ' Таблица "Реквизиты предприятия"
+
+Dim USRTBL_DOP
+USRTBL_DOP = workarea.GetSysUTableID("ДРП") ' Таблица "Реквизиты предприятия (доп.)"
+
+Dim USRTBL_REG
+USRTBL_REG = workarea.GetSysUTableID("НПФ") ' Таблица "Регистрационные номера"
+
+' Прочие
+'==============================================
+Const VALUE_NDS_PERCENT		= 20
+Const VALUE_PDN_PERCENT		= 13
+Const lvlTariff					= 50 ' Порог, когда оклад считается тарифом "&lt;"
+Const MAX_LEVEL_SS				= 365 ' соцстрах, больше - 1%, меньше 0,5%
+
+Dim MAX_FOUND_CY
+MAX_FOUND_CY = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+
+Dim tblIndex
+Set tblIndex = workarea.utable(workarea.GetSysUTableID("КИЗП"))
+
+Dim LivingWage 
+LivingWage = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MINLIF,2)
+
+'==============================================
+Function GetUTID(tblCode)
+	Dim sql,rs,rez
+
+	MsgBox "Функция GetUTID устарела !"
+	sql = "Select UT_ID from USR_TABLES where UT_CODE='"&amp;tblCode&amp;"'"
+	Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+	rez = 0
+	If Not rs.eof Then _
+		rez = rs("UT_ID")
+	GetUTID = rez
+
+End Function
+'==============================================
+Function GetDumByCodeDepsPPIN(mtdID, ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And (select mtd_type from mtd_codes where mtd_id = P_JOURNAL.mtc_id) = 101 and " &amp; _
+				"W_PERIOD = " &amp;ppID &amp; " And MTC_ID In (Select MTD_ID_LEFT  from MTD_DEPENDS where MTD_ID_RIGHT=" &amp; mtdID &amp; ")"
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) &gt; 0 Then _
+		rez = rs("SUM_REZ")
+	GetDumByCodeDepsPPIN = rez
+End Function
+
+'==============================================
+Function GetDumByCodeDepsPP(mtdID, ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And W_PERIOD = " &amp;ppID &amp; " and MTC_ID in (select MTD_ID_LEFT  from MTD_DEPENDS where MTD_ID_RIGHT=" &amp; mtdID &amp; ")"
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) &gt; 0 Then _
+		rez = rs("SUM_REZ")
+	GetDumByCodeDepsPP = rez
+End Function
+
+'==============================================
+Function GetSumByCodePP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&amp;mtdID&amp;" And W_PERIOD="&amp;ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) &gt; 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByCodePP = rez
+End Function
+'==============================================
+Function GetSumAgByMtdPP(AgID, mtdID, ppID)
+	Dim rs,sql
+
+	sql = "Select Sum(JP_SUM) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&amp;mtdID&amp;" And W_PERIOD="&amp;ppID &amp; " and Ag_ID=" &amp; AgID
+	InitRS rs, sql 
+	GetSumAgByMtdPP = checknull(rs.fields(0).value, 0)
+
+End Function
+
+'==============================================
+Function IsAgIsIll(Ag, Period) 
+	Dim Sum, aCodes, i
+
+	Sum = 0
+	aCodes = Array("0410", "0420", "0430", "0440", "0450")
+
+	For i = 0 To UBound(aCodes)
+		Sum = GetSumAgByMtdPP(Ag.ID, workarea.GetCodeID(aCodes(i)), Period)
+		If Sum &lt;&gt; 0 Then
+			IsAgIsIll = True
+			Exit Function
+		End If
+	Next
+
+	IsAgIsIll = False
+End Function
+
+'==============================================
+Function GetSumByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_SUM&gt;" &amp; CStr(MAX_FOUND_CY) &amp; "," &amp; CStr(MAX_FOUND_CY) &amp; ",JP_SUM)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&amp;mtdID&amp;" And W_PERIOD="&amp;ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) &gt; 0 Then _
+		rez = rs("SUM_REZ")
+	GetSumByMtdPP = rez
+End Function
+
+'==============================================
+Function GetTariffByMtdPP(mtdID,ppID)
+	Dim rez
+	Dim rs,sql
+	rez = 0
+	sql = "Select Sum(IIF(JP_TARIFF&gt;" &amp; CStr(MAX_FOUND_CY) &amp; "," &amp; CStr(MAX_FOUND_CY) &amp; ",JP_TARIFF)) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTD_ID="&amp;mtdID&amp;" AND JP_SUM&gt;0 And W_PERIOD="&amp;ppID
+	InitRS rs, sql 
+	If Abs(rs("SUM_REZ")) &gt; 0 Then _
+		rez = rs("SUM_REZ")
+	GetTariffByMtdPP = rez
+End Function
+
+
+'==============================================
+Function GetFotPercent(codeName)
+	Dim rez,rs,sql
+	rez = 0
+	sql = "SELECT MTD_PERCENT FROM MTD_CODES WHERE " &amp; _
+		" MTD_CODE = '" &amp; codeName &amp;"'"
+	InitRS rs,sql
+	If Not rs.eof Then _
+		rez = rs("MTD_PERCENT")
+	GetFotPercent = rez	
+End Function
+
+
+'==============================================
+Sub InitRS(ByRef rs, sql) ' простая инициализация
+	Dim db,qd 	' для ADO
+	Dim cn,cmd	' для SQL
+	Select Case app.appType
+		Case "DAO":
+			Set rs = WorkArea.DAODataBase.OpenRecordset(sql)
+		Case "OLEDB", "SQL" :
+
+			sql = Replace(sql, Chr(34), "'")
+
+			Set cn = WorkArea.ADOConnection
+			Set cmd = CreateObject("AdoDb.Command")
+			Set cmd.ActiveConnection = cn
+			cmd.commandText = sql
+			Set rs = cmd.execute
+	End Select
+	' передаём созданный RS в основную программу	
+End Sub
+
+'==============================================
+Function GetFotMax(codeName)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "SELECT MTD_THRESHOLD FROM MTD_CODES WHERE " &amp; _
+			" MTD_CODE = '" &amp; codeName &amp;"'"
+	InitRS rs,sql ' DAO &amp; OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("MTD_THRESHOLD")		
+	GetFotMax = rez
+End Function
+
+'==============================================
+Function GetHoursByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_HOURS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&amp;mtdID&amp;" And W_PERIOD="&amp;ppID
+	InitRS rs,sql ' DAO &amp; OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetHoursByMtd = rez / 10
+End Function
+
+'==============================================
+Function GetDaysByMtd(mtdID, ppID)
+	Dim rez,sql
+	rez = 0
+	Dim rs
+	sql = "Select Sum(JP_DAYS) as SUM_REZ from P_JOURNAL Where JP_DONE=1 And MTC_ID="&amp;mtdID&amp;" And W_PERIOD="&amp;ppID
+	InitRS rs,sql ' DAO &amp; OLEDB init
+	If Not rs.eof	Then _
+		rez = rs("SUM_REZ")		
+	GetDaysByMtd = rez * 8
+End Function
+
+'---
+'
+'---
+Function DeleteAllRows(Tr)
+	DeleteAllRows = True
+End Function
+'---
+'
+'---
+Function Filldepartment3(Op, mArray, Flag)
+	Dim i
+	Dim AgRoot
+	Dim RowNo
+	Dim dFirst, dLast
+	Dim dIn, Dout
+
+	Op.Pack2 GetRef("DeleteAllRows")
+	dFirst = Op.wperiod.firstday
+	dLast = Op.wperiod.lastday
+	RowNo = 0
+
+	With WorkArea.Agent(Op.OrgID)
+		If Flag Then
+			Set AgRoot = .Nested
+		Else
+			Set AgRoot = .Children
+		End If
+	End With
+
+	For i = 1 To AgRoot.Count
+		With AgRoot.Item(i)
+			If .Type = 3 Then
+				dIn = .Prop("Дата приема")
+				Dout = .Prop("Дата увольнения")
+
+				If ((dIn &lt;= dLast Or dIn = 0) And (Dout &gt;= dLast Or Dout = 0)) Or _
+					(Dout &gt;= dFirst And Dout &lt;= dLast) Then
+
+					If (.Prop(PROP_PERHOUR_TAG) = 0 And op.long2 = 0) Or _
+							(.Prop(PROP_PERHOUR_TAG) &lt;&gt; 0 And op.long2 = -1) Then
+						RowNo = RowNo + 1
+						AddAgToOp .ID, Op, RowNo, mArray
+					Else
+						Msg.Write ": Внимание! Тарифный план для " &amp; .Name &amp; " не соответствует установленному в документе", vbCritical, _
+                "kind:agent;id=" &amp; .ID &amp; ";action=properties"
+					End If
+				End If
+			End If
+		End With
+	Next
+
+	Op.SetAllAgents
+	Op.renumberRows
+
+	If RowNo = 0 Then RowNo = 1
+
+	Filldepartment3 = RowNo
+
+End Function
+'---
+'
+'---
+Sub AddAgToOp(AgID, Op, RowNo, mArray)
+	Dim s
+	Dim i
+
+	For i = 0 To UBound(mArray)
+		With op.TransRM(RowNo, mArray(i))
+			.AgID = AgID
+
+			If i = 0 Then
+				s = .Tariff
+			Else
+				.Tariff = s
+			End If
+
+			If op.long2 = 0 Then
+				.Hours = 0
+			ElseIf op.long2 = -1 Then 
+				.Days = 0
+			End If
+		End With
+	Next
+End Sub
+'---
+'
+'---
+
+Function CalcKIndex(AgBaseMonth, OnDate)
+	Dim K
+ 	Dim RK
+ 	Dim SalaryDate
+	Dim aMonth
+
+	aMonth	= Array("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+	K = 1
+  	RK = 1
+  	SalaryDate = DateAdd("m", 1, AgBaseMonth)
+
+	While SalaryDate &lt;= FirstDayInMonth(DateAdd("m", -2, OnDate))
+  		RK = RK * tblIndex.GetValue(1, aMonth(Month(SalaryDate) - 1) &amp; " " &amp; CStr(Year(SalaryDate)), 2) / 100
+
+			If CCur(RK) &gt; 1.01 Then
+				K = K * Round2(RK, 3)
+			    RK = 1
+		   End If
+	   SalaryDate = DateAdd("m", 1, SalaryDate)
+	Wend
+
+  CalcKIndex = Round2((K - 1) * 100, 1)
+
+End Function
+'---
+'
+'---
+Function strzero(num, NumLen)
+	Dim cNum
+
+	cNum = CStr(num)
+
+	If Len(cNum) &lt; NumLen Then
+		strzero = String(NumLen - Len(cNum), "0") &amp; cNum
+	Else
+		strzero = cNum
+	End If
+
+End Function
+'---
+'
+'---
+Function CalcSumByPeriod(AgID, CodeID, dStart, dEnd)
+	Dim DB, Cmd, Cn, Rs
+	Dim DateStr
+
+	SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM] " &amp; _
+						"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " &amp; _
+						"WHERE (((P_JOURNAL.AG_ID)=" &amp; AgID&amp; ") And ((P_DOCUMENTS.PD_DATE) Between @)) " &amp; _
+						"GROUP BY MTD_CODES.MTD_ID " &amp; _
+						"HAVING (((MTD_CODES.MTD_ID)=" &amp; CodeID &amp; "));"
+
+	If App.AppType = "DAO" Then
+		DateStr = "#" &amp; Formatdate2(dStart, "yyyy/mm/dd") &amp; "# And #" &amp; Formatdate2(dEnd, "yyyy/mm/dd") &amp; "#"
+		SQLString = Replace(SQLString, "@", DateStr)
+		Set Rs = Workarea.DAODAtabase.OpenRecordset(SQLString)
+	Else
+		DateStr = "'" &amp; strzero(Year(dStart), 4) &amp; strzero(Month(dStart), 2) &amp; strzero(Day(dStart), 2) &amp; "' And '" &amp; _
+								strzero(Year(dEnd), 4) &amp; strzero(Month(dEnd), 2) &amp; strzero(Day(dEnd), 2) &amp; "'"
+		SQLString = Replace(SQLString, "@", DateStr)
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+		Set GetRs = Rs	' выполняем команду 
+	End If
+	
+	If Rs.eof Then
+		CalcSumByPeriod = 0
+	Else
+		CalcSumByPeriod = Rs.Fields(0).Value
+	End If
+	
+End Function
+'---
+'	возвращает общую сумму начислений - удержаний с учетом исключений не зависимо от установки "Служебный код"
+'---
+Function Ideal_GetAgentSum(AgID, PeriodID)
+	Dim SQL, aExclude, Rs
+
+	With workarea
+		aExclude = Array(.getcodeid("0117"), .getcodeid("2440"))
+	End With
+
+	If App.AppType = "DAO" Then
+		SQL = "Select sum(IIf(mtd_type=101,1,-1)*JP_SUM) AS ag_sum "
+	Else
+		SQL = "Select sum(case when mtd_type=101 then JP_SUM else -JP_SUM) AS ag_sum "
+	End If
+
+	SQL = SQL &amp; "FROM MTD_CODES " &amp; _
+						"INNER Join P_JOURNAL On MTD_CODES.MTD_ID = P_JOURNAL.MTC_ID " &amp; _
+						"WHERE mtd_type &lt;&gt; 103 and P_JOURNAL.W_PERIOD=" &amp; PeriodID &amp; "  And P_JOURNAL.JP_DONE=1 And P_JOURNAL.AG_ID=" &amp; AgID
+	SQL = SQL &amp; "And Not MTD_CODES.MTD_ID In (" &amp; Join(aExclude, ",") &amp; ")"
+
+	InitRS Rs, SQL
+
+	If Not Rs.eof Then
+		Ideal_GetAgentSum = checknull(Rs.Fields(0).Value)
+	Else
+		Ideal_GetAgentSum = 0
+	End If
+
+End Function
+'---
+'
+'---
+Sub CalcSumByPeriod_my(AgID, CodeID, dStart, dEnd)
+	Dim DB, Cmd, Cn, Rs, prm 
+	Const adCmdText = 1
+	Const adParamInput = 1
+	Const adDate = 7
+
+	If App.AppType = "DAO" Then
+		SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM], Max(P_JOURNAL.org_id) as org, max(P_JOURNAL.jp_db) " &amp; _
+							"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " &amp; _
+							"WHERE (((P_JOURNAL.AG_ID)=" &amp; AgID&amp; ") And ((P_DOCUMENTS.PD_DATE) Between '#" &amp; Formatdate2(dStart, "yyyy/mm/dd") &amp; "#' And '#" &amp; Formatdate2(dEnd, "yyyy/mm/dd") &amp; "#')) " &amp; _
+							"GROUP BY MTD_CODES.MTD_ID " &amp; _
+							"HAVING (((MTD_CODES.MTD_ID)=" &amp; CodeID &amp; "));"
+
+		SQLString = Replace(SQLString, "'", "")
+		Set Rs = Workarea.DAODAtabase.OpenRecordset(SQLString)
+	Else
+		SQLString = "Select Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM], Max(P_JOURNAL.org_id) as org, max(P_JOURNAL.jp_db) " &amp; _
+							"FROM P_DOCUMENTS INNER Join ((MTD_CODES INNER Join MTD_DEPENDS On MTD_CODES.MTD_ID = MTD_DEPENDS.MTD_ID_RIGHT) INNER Join P_JOURNAL On MTD_DEPENDS.MTD_ID_LEFT = P_JOURNAL.MTC_ID) On P_DOCUMENTS.PD_ID = P_JOURNAL.PD_ID " &amp; _
+							"WHERE (((P_JOURNAL.AG_ID)=" &amp; AgID&amp; ") And ((P_DOCUMENTS.PD_DATE) Between ? And ? )) " &amp; _
+							"GROUP BY MTD_CODES.MTD_ID " &amp; _
+							"HAVING (((MTD_CODES.MTD_ID)=" &amp; CodeID &amp; "));"
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 
+		Set Cmd = CreateObject("ADODB.Command")
+		Set Cmd.ActiveConnection = Cn
+		Cmd.CommandType = adCmdText
+		Cmd.CommandText = SQLString
+	
+		Set Prm = Cmd.CreateParameter(, adDate, adParamInput) 
+		Prm.Value = dStart 
+		Cmd.Parameters.Append Prm 
+
+		Set Prm = Cmd.CreateParameter(, adDate, adParamInput) 
+		Prm.Value = dEnd 
+		Cmd.Parameters.Append Prm 
+
+		Set rs = cmd.execute
+	End If
+
+	If Rs.eof Then
+		AgSum = 0
+		OrgId = 0
+		Accdb = ""
+	Else
+		AgSum = Rs.Fields(0).Value
+		Orgid = Rs.Fields(1).Value
+		Accdb = Rs.Fields(2).Value
+	End If
+	
+End Sub
+	
+</file></folder><folder name="0 Начисления"><folder name="01 Основные"><code code="0110" name="Основная зарплата" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0110" code="0110ч" name="Должностной оклад (часы)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="ОКЛЧ">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 01/11/2003
+'= Изменен : 13/09/2013
+'= Автор  : Impact Group Ltd.
+'= Код    : 001 Основная зарплата
+'= Метод  : Должностной оклад (часы)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	With Tr
+		bOk = True
+		If .GHours = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+
+		If .GDays = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+
+		If .Hours = 0 And .Days = 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов/дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+
+		If Not bOk Then Exit Sub
+
+		If .Hours &gt; 0 Then
+			.Sum = Round2(.Tariff / .GHours * .Hours , 2) 
+		Else
+			.Sum = Round2(.Tariff / .GDays * .Days , 2) 
+		End If
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	Dim rez
+	Dim IsHour
+
+	If Tr.PDocument Is Nothing Then 
+		IsHour = False
+	Else
+		IsHour = (Tr.PDocument.long2 = -1)
+	End If
+
+	With Tr
+		If .Agent.Prop("Дата приема")&gt;.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		If .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday) &gt; 0 And Not IsHour Then
+			Msg.Write .FormatMessage(.code.name + ": Внимание! Для '%A' оплата в часах."), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+
+		If .ghours = 0 Then
+'			Получаем график и факт			
+			Global_SetHours Tr, True, True, .wperiod
+			Global_SetDays Tr, True, True, .wperiod
+		Else
+'			Получаем график
+			Global_SetHours Tr, False, True, .wperiod
+			Global_SetDays Tr, False, True, .wperiod
+		End If
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0110" code="0111m" name="Оклад (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:21:05
+'= Автор  : admin
+'= Код    : 0110 Основная зарплата
+'= Метод  : Оклад (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+</method><method parent="0110" code="0120w" name="Тариф за час" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 12/05/2004 14:39:12
+'= Автор  : Alib Ezbar
+'= Код    : 0110 Основная зарплата
+'= Метод  : Тариф за час
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	With Tr
+		bOk = True
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан тариф за час"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		.Sum = .Tariff * .Hours
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub	
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		If .tariff = 0 Then 
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			.AgID = 0
+			Exit Sub
+		End If
+		If .ghours = 0 Then
+'			Получаем график и факт
+			Global_SetHours Tr, True, True, .wperiod
+		Else
+'			Получаем график
+			Global_SetHours Tr, False, True, .wperiod
+		End If
+		.Sum1 = .Agent.Prop("Премия, %")
+		SetDb(Tr)
+	End With
+End Sub
+</method></methods></code><code code="0115" name="Сдельная оплата" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0115" code="0115w" name="Сдельная оплата" methodtype="2" db="23" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/07/2004 17:03:09
+'= Автор  : admin
+'= Код    : 0115 Сдельная оплата
+'= Метод  : Сдельная оплата
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+
+</method><method parent="0115" code="0116m" name="Сдельная оплата (вручную)" methodtype="2" db="23" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:21:46
+'= Автор  : admin
+'= Код    : 0115 Сдельная оплата
+'= Метод  : Сдельная оплата (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+</method></methods></code><code code="0117" name="Аванс" type="101" db="" cr="" percent="0" syscode="" isservice="-1"><depends/><methods><method parent="0117" code="0117-01" name="Начислен аванс" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 01/09/2006 21:44:15
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		CalcSum = .Sum1
+		If CalcSum = 0 Then CalcSum = .tariff
+		.Tariff = CalcSum
+		.Sum = CalcSum
+		.DbCode = .Long1
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim CalcSum
+
+	With Tr
+		If .Agent.Prop("Дата приема")&gt;.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+     	          .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			With .Agent
+				If .Prop("% оклада для аванса") &lt;&gt; 0 Then
+					CalcSum = Round2(.Prop("Оклад") * .Prop("% оклада для аванса") / 100, 0)
+				Else
+					CalcSum = 0
+				End If
+			End With
+
+			.Sum1 = CalcSum
+
+		End If
+	End With
+
+	SetDb(Tr)
+End Sub
+</method><method parent="0117" code="0117-02" name="Начислен аванс с 01.01.2011" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 03/01/2011 12:50:09
+'= Изменен : 13/09/2013
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс с 01.01.2011
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+
+		If .GHours = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+     End If
+
+		If .GDays = 0 Then
+       ' Не укзано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+     End If
+
+		If .GDays = 0 Or .GHours = 0 Then Exit Sub
+
+		If .Hours &gt; 0 Then
+			If .Tariff &lt;&gt; 0 Then
+				.Sum = Round2(.Tariff / .GHours * .Hours , 2) 
+			Else
+				.Sum = Round2(.Sum1 * .Hours , 2)
+			End If
+		Else
+			.Sum = Round2(.Tariff / .GDays * .Days , 2) 
+		End If	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .Agent.Prop("Дата приема")&gt;.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+     	          .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+			.Sum1 = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+
+			If .ghours = 0 Then
+			'			Получаем график и факт			
+				Global_SetHours Tr, True, True, .wperiod
+				Global_SetDays Tr, True, True, .wperiod
+			Else
+			'			Получаем график
+				Global_SetHours Tr, False, True, .wperiod
+				Global_SetDays Tr, False, True, .wperiod
+			End If
+
+		End If
+	End With
+
+	SetDb(Tr)
+End Sub
+
+</method><method parent="0117" code="0117-03" name="Начислен аванс с 01.01.2011 (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 01/04/2011 16:50:09
+'= Автор  : admin
+'= Код    : 0117 Аванс
+'= Метод  : Начислен аванс с 01.01.2011
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim SumPay
+
+	With Tr
+
+		If .Sum2 &gt; 0 Then
+			.Sum = .Sum2
+		ElseIf (.Sum1 &gt; 0) Then
+			SumPay = Round2(.Tariff * .Sum1 / 100, 0)
+			.Sum2 = SumPay
+			.Sum = SumPay
+		End If
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .Agent.Prop("Дата приема")&gt;.wperiod.lastday Then 
+			Msg.Write .FormatMessage(.code.name + ": Внимание! '%A' в текущем периоде не работает."), vbCritical, _
+     	          .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		If .ApplySource = "AgentID" Or .ApplySource = "MethodID" Then
+			
+				.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+				If .Agent.Prop("% оклада для аванса") &lt;&gt; 0 Then					
+					.Sum1 = .Agent.Prop("% оклада для аванса")					
+				Else
+					.Sum1 = 0
+				End If
+			
+		End If
+	End With
+
+	SetDb(Tr)
+End Sub
+
+
+</method></methods></code></folder><folder name="02 Доплаты"><code code="0210" name="Вечерние" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0210" code="0210п" name="Вечерние (%)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="ВЕЧ">'==============================================
+'					И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 08/07/2003 11:05:31
+'= Автор  : Alex
+'= Код    : 010 Вечерние
+'= Метод  : %
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	Dim ps
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		ps = .Tariff / .GHours
+		' в .Sum1 лежит процент вечерних
+		.Sum = Round2( ps * .hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_EVENING,2)
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0210" code="0211m" name="Вечерние (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:22:24
+'= Автор  : admin
+'= Код    : 0210 Вечерние
+'= Метод  : Вечерние (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+
+</method><method parent="0210" code="0220w" name="Вечерние (тариф)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 13/05/2004 10:50:30
+'= Автор  : admin
+'= Код    : 0210 Вечерние
+'= Метод  : Вечерние (тариф)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		' в .Sum1 лежит процент вечерних
+		.Sum = Round2( .tariff * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_EVENING,2)
+		SetDb(Tr)
+	End With
+End Sub
+
+</method></methods></code><code code="0220" name="Ночные" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0220" code="0220п" name="Ночные (%)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="НОЧ">'==============================================
+'					И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 08/07/2003 11:05:38
+'= Автор  : Alex
+'= Код    : 011 Ночные
+'= Метод  : %
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	Dim ps
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		ps = .Tariff / .GHours
+		' в .Sum1 лежит процент ночных
+		.Sum = Round2( ps * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_NIGHT,2)
+		SetDb(Tr)
+	End With
+End Sub
+
+</method><method parent="0220" code="0221m" name="Ночные (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:22:54
+'= Автор  : admin
+'= Код    : 0220 Ночные
+'= Метод  : Ночные (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0220" code="0230w" name="Ночные (тариф)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 13/05/2004 10:54:59
+'= Автор  : admin
+'= Код    : 0220 Ночные
+'= Метод  : Ночные (тариф)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		' в .Sum1 лежит процент ночных
+		.Sum = Round2( .tariff * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_NIGHT,2)
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0230" name="Сверхурочные" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0230" code="0230п" name="Сверхурочные (%)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="СВУ">'==============================================
+'					И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 30/10/2003 00:49:37
+'= Автор  : admin
+'= Код    : 013 Сверхурочные
+'= Метод  : Сверхурочные (%)
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	Dim ps
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		ps = .Tariff / .GHours
+		' в .Sum1 лежит процент сверхурочных
+		.Sum = Round2( ps * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных (сверхурочных *)
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_OVERTIME,2)
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0230" code="0231m" name="Сверхурочные (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:23:17
+'= Автор  : admin
+'= Код    : 0230 Сверхурочные
+'= Метод  : Сверхурочные (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0230" code="0240w" name="Сверхурочные (тариф)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 13/05/2004 10:56:22
+'= Автор  : admin
+'= Код    : 0230 Сверхурочные
+'= Метод  : Сверхурочные (тариф)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		' в .Sum1 лежит процент сверхурочных
+		.Sum = Round2( .tariff * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных (сверхурочных *)
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_OVERTIME,2)
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0240" name="Выходные и праздничные" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0240" code="0240п" name="Выходные и праздничные (%)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="ПРЗ">'==============================================
+'					И Д Е А Л
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 30/10/2003 00:48:10
+'= Автор  : admin
+'= Код    : 012 Праздничные
+'= Метод  : Праздничные (%)
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	Dim ps
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		ps = .Tariff / .GHours
+		' в .Sum1 лежит процент праздничных
+		.Sum = Round2( ps * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_HOLIDAY,2)
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0240" code="0241m" name="Выходные и праздничные (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:24:35
+'= Автор  : admin
+'= Код    : 0240 Выходные и праздничные
+'= Метод  : Выходные и праздничные (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method><method parent="0240" code="0250w" name="Выходные и праздничные (тариф)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 13/05/2004 10:57:55
+'= Автор  : admin
+'= Код    : 0240 Выходные и праздничные
+'= Метод  : Выходные и праздничные (тариф)
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	Dim bOk
+	bOk = True
+	With Tr
+		' Почасовая ставка
+		If .GHours = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		' в .Sum1 лежит процент праздничных
+		.Sum = Round2( .tariff * .Hours * (.Sum1 / 100.00), 2)
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		' для этого начисления нужен оклад
+		.Tariff = .Agent.Prop(PROP_PERHOUR_TAG, .wperiod.firstday)
+		' и часы по графику (GHours)
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+		' и процент ночных
+		.Sum1 = WorkArea.UTable(USRTBL_INID).GetValue(1,USRTBL_HOLIDAY,2)
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0250" name="За совмещение" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0250" code="0251w" name="За совмещение" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/08/2004 14:29:43
+'= Автор  : admin
+'= Код    : 0250 За совмещение
+'= Метод  : За совмещение
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+	Dim bOk
+	With Tr
+		bOk = True
+		If .Sum1 = 0 Then
+       ' Не указан оклад у замещаемого
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад замещаемого"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .GHours = 0 Then
+       ' Не указано количество часов по графику
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество часов по графику"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+     End If
+		If .Tariff = 0 Then 
+			' не указан оклад
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан оклад"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If .Hours = 0 And .sum3 &lt;= 0 Then 
+			' не указано количество отработанных часов
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество отработанных часов"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			bOk = False
+		End If
+		If Not bOk Then Exit Sub
+		'sum1 	- оклад, того КОГО замещают
+		'tariff	- оклад, того КТО замещает
+		'sum3	- % надбавки, 1й приоритет в расчёте
+		If .sum3 &gt; 0 Then ' делаем оклад по проценту :)
+			.sum = Round2(.sum1 / .ghours * .hours * .sum3 / 100,2)
+		Else
+			.sum = Round2(Abs(.sum1 - .tariff)/ .ghours * .Hours,2)
+		End If
+
+		.DbCode = .Long1
+
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+' Оклад корреспондента-замещенца
+		.Tariff = .Agent.Prop(PROP_SALARY_TAG)
+' % Оклада
+		.sum3 = .agent.prop(PROP_PZAM_TAG)
+' Оклад замещаемого
+		.sum1 = workarea.agent(.Agent.Prop(PROP_AG_ZAM)).prop(PROP_SALARY_TAG, .wperiod.firstday) 
+		Global_SetHours Tr, False, True, .wperiod ' только "по графику"
+	End With
+	SetDb(Tr)
+End Sub</method><method parent="0250" code="0252m" name="За совмещение (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:24:27
+'= Автор  : admin
+'= Код    : 0250 За совмещение
+'= Метод  : За совмещение (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0260" name="Классность" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0260" code="0260m" name="Классность (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:25:31
+'= Автор  : admin
+'= Код    : 0260 Классность
+'= Метод  : Классность (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0270" name="Доплата к окладу" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0270" code="0270m" name="Доплата к окладу (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:26:34
+'= Автор  : admin
+'= Код    : 0270 Доплата к окладу
+'= Метод  : Доплата к окладу (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code></folder><folder name="03 Надбавки"><code code="0310" name="Дополнительные начисления" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0310" code="0310р" name="Дополнительные начисления" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 03/02/2004 14:42:00
+'= Автор  : admin
+'= Код    : 0310 Дополнительные начисления
+'= Метод  : Дополнительные начисления
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.sum = .tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+	End With
+
+	SetDb(Tr)
+End Sub</method></methods></code><code code="0320" name="Премия" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/></depends><methods><method parent="0320" code="0320a" name="Премия Сдельная (вручную)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:27:30
+'= Автор  : admin
+'= Код    : 0320 Премия
+'= Метод  : Премия Сдельная (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+	With Tr
+		.tariff = .DependsW.Sum
+		If .sum1 &lt;&gt; 0 Then
+			s = .tariff / 100.0 * CDbl(.sum1)
+			.Sum2 = s ' ЭТА ШТУКА СБРОСИТ SUM !, ПОЭТОМУ ПРИСВАИВАНИЕ .SUM ДОЛЖНО БЫТЬ ПОСЛЕДНИМ!!!!
+			.Sum = s
+		Else
+			.Sum = .Sum2
+		End If
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "AgentID" Then
+			SetDb(Tr)
+			.Sum1 = .Agent.Prop("Премия, %")
+		End If
+	End With
+End Sub</method><method parent="0320" code="0320b" name="Премия ИТР (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:27:38
+'= Автор  : admin
+'= Код    : 0320 Премия
+'= Метод  : Премия ИТР (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim s
+	With Tr
+		.tariff = .DependsW.Sum
+		If .sum1 &lt;&gt; 0 Then
+			s = .tariff / 100.0 * CDbl(.sum1)
+			.Sum2 = s ' ЭТА ШТУКА СБРОСИТ SUM !, ПОЭТОМУ ПРИСВАИВАНИЕ .SUM ДОЛЖНО БЫТЬ ПОСЛЕДНИМ!!!!
+			.Sum = s
+		Else
+			.Sum = .Sum2
+		End If
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+
+	With Tr
+		If .ApplySource = "AgentID" Then
+			SetDb(Tr)			
+			tr.Sum1 = .Agent.Prop("Премия, %")
+		End If
+	End With
+End Sub</method></methods></code></folder><folder name="04 Больничные"><code code="0410" name="Больничные за счет предприятия" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/></depends><methods><method parent="0410" code="0410п" name="Больничные за счет предприятия" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 02/02/2004 10:38:03
+'= Автор  : admin
+'= Код    : 0410 Больничные за счет предприятия
+'= Метод  : Больничные за счет предприятия
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TotalSum
+
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент размера помощи"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной/среднечасовой тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		TotalSum = .sum2 / 100 * .sum1 * .days
+
+		If .Sum3 &lt;&gt; 0 Then TotalSum = TotalSum * .Sum3
+
+		.Sum = TotalSum
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0420" name="Больничные соцстрах" type="101" db="652" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/></depends><methods><method parent="0420" code="0420п" name="Больничные соцстрах" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 02/02/2004 10:38:45
+'= Автор  : admin
+'= Код    : 0420 Больничные соцстрах
+'= Метод  : Больничные соцстрах
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TotalSum
+
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной/среднечасовой тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+
+		TotalSum = .sum2 / 100 * .sum1 * .days
+		If .Sum3 &lt;&gt; 0 Then TotalSum = TotalSum * .Sum3
+
+		.Sum = TotalSum
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+	End With
+
+	SetDb(Tr)
+End Sub</method></methods></code><code code="0430" name="Больничные по беременности (без)" type="101" db="652" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/><code code="0530"/></depends><methods><method parent="0430" code="0430w" name="Больничные по беременности" methodtype="2" db="" cr="661" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 30/09/2005 10:38:07
+'= Изменен : 13/09/2013
+'= Автор  : admin
+'= Код    : 0430 Больничные по беременности (без)
+'= Метод  : Больничные по беременности (без)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr		
+'		If .days = 0 Then
+'			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+'                .FormatNavigateString("agent", "properties")
+'		End If
+		If .sum2 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 And .sum2 &lt;&gt; 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+		.sum = .sum2 / 100 * .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+	End With
+
+	SetDb(Tr)
+
+End Sub</method></methods></code><code code="0440" name="Больничные по уходу за ребёнком (CC)" type="101" db="652" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/></depends><methods><method parent="0440" code="0440w" name="Больничные по уходу за ребёнком (CC)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 30/09/2005 10:30:36
+'= Автор  : admin
+'= Код    : 0440 Больничные по уходу за ребёнком (CC)
+'= Метод  : Больничные по уходу за ребёнком (CC)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+		.sum = .sum2 / 100 * .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+	End With
+
+	SetDb(Tr)
+
+End Sub</method></methods></code><code code="0450" name="Больничные по травме (ФНС)" type="101" db="656" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/></depends><methods><method parent="0450" code="0450w" name="Больничные по травме" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 30/09/2005 10:38:33
+'= Автор  : admin
+'= Код    : 0450 Больничные по травме (ФНС)
+'= Метод  : Больничные по травме (ФНС)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum2= 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .sum1 = 0 Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан процент"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+			Exit Sub
+		End If
+		.sum = .sum2 / 100 * .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+	End With
+
+	SetDb(Tr)
+
+End Sub</method></methods></code></folder><folder name="05 Отпускные"><code code="0510" name="Отпускные *" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="0310"/><code code="091"/><code code="0115"/><code code="0250"/><code code="0260"/><code code="0270"/><code code="0430"/><code code="0440"/><code code="0450"/></depends><methods><method parent="0510" code="0510в" name="Отпускные настоящего периода" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 20/11/2003 16:45:11
+'= Автор  : admin
+'= Код    : 0510 Отпускные
+'= Метод  : Отпускные
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days &lt;&gt; 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum   = .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim i,vDays
+	With Tr
+		Dim bl,dep,mm,dd,dat
+		If .AgID &lt;= 0 Then Exit Sub 'Если нет агента
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub 'Если агент не сотрудник
+
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0520" name="Отпускные будущего периода" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="0310"/><code code="091"/><code code="0115"/><code code="0250"/><code code="0260"/><code code="0270"/><code code="0430"/><code code="0440"/><code code="0450"/></depends><methods><method parent="0520" code="0520п" name="Отпускные будущего периода" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 20/11/2003 16:45:11
+'= Автор  : admin
+'= Код    : 0510 Отпускные
+'= Метод  : Отпускные
+'==============================================
+
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days &lt;&gt; 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum   = .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim i,vDays
+	With Tr
+		Dim bl,dep,mm,dd,dat
+		If .AgID &lt;= 0 Then Exit Sub 'Если нет агента
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub 'Если агент не сотрудник
+
+		SetDb(Tr)
+	End With
+End Sub
+</method></methods></code><code code="0530" name="Компенсация отпускных" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="0310"/><code code="091"/><code code="0115"/><code code="0250"/><code code="0260"/><code code="0270"/><code code="0430"/><code code="0440"/><code code="0450"/></depends><methods><method parent="0530" code="0530m" name="Компенсация отпускных (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:28:42
+'= Автор  : admin
+'= Код    : 0530 Компенсация отпускных
+'= Метод  : Компенсация отпускных
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days &lt;&gt; 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.Tariff = .sum1
+		.sum   = .sum1 * .days
+		.dbCode = .Long1
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0540" name="Выходное пособие" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0540" code="0540w" name="Выходное пособие.mtd" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 03/10/2005 11:06:24
+'= Автор  : admin
+'= Код    : 0540 Выходное пособие
+'= Метод  : Выходное пособие
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days &lt;&gt; 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum   = .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim i,vDays
+	With Tr
+		Dim bl,dep,mm,dd,dat
+		If .AgID &lt;= 0 Then Exit Sub 'Если нет агента
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub 'Если агент не сотрудник
+
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code><code code="0550" name="Увольнительные" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="091"/><code code="0115"/></depends><methods><method parent="0550" code="0550w" name="Увольнительные" methodtype="2" db="" cr="661" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 03/10/2005 11:19:39
+'= Автор  : admin
+'= Код    : 0550 Увольнительные
+'= Метод  : Увольнительные
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If (.sum1 = 0) And (.days &lt;&gt; 0) Then
+			Msg.Write .FormatMessage(.code.name + ": Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum   = .sum1 * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim i,vDays
+	With Tr
+		Dim bl,dep,mm,dd,dat
+		If .AgID &lt;= 0 Then Exit Sub 'Если нет агента
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub 'Если агент не сотрудник
+
+		SetDb(Tr)
+	End With
+End Sub
+
+</method></methods></code></folder><folder name="06 Единовременные выплаты"><code code="0600" name="Мат. помощь (не обл.)" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0600" code="0600m" name="Мат. помощь (не обл.)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 16/08/2004 15:25:33
+'= Автор  : admin
+'= Код    : 0600 Мат. помощь (не обл.)
+'= Метод  : Мат. помощь (не обл.)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+
+</method></methods></code><code code="0610" name="Мат. помощь (обл.)" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0610" code="0610m" name="Мат. помощь (обл.)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 16/08/2004 15:25:54
+'= Автор  : admin
+'= Код    : 0610 Мат. помощь (обл.)
+'= Метод  : Мат. помощь (обл.)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+			SetDb(Tr)		
+	End With
+End Sub
+
+</method></methods></code><code code="0620" name="Транспорт (проезд)" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0620" code="0620m" name="Транспорт (проезд)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан  16082004 152621
+'= Автор   admin
+'= Код     0620 Транспорт (проезд)
+'= Метод   Транспорт (проезд)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+			SetDb(Tr)		
+	End With
+End Sub
+</method></methods></code><code code="0630" name="Проф. мастерство" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0630" code="0630m" name="Проф мастерство (вручную)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:29:56
+'= Автор  : admin
+'= Код    : 0630 Проф. мастерство
+'= Метод  : Проф мастерство (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+			SetDb(Tr)		
+	End With
+End Sub
+
+</method></methods></code></folder><folder name="07 Командировки"><code code="0710" name="Средн. за командировку" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="0710" code="0710k" name="Средняя за командировку" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 12/02/2009 10:51:00
+'= Автор  : admin
+'= Код    : 0710 Команд.
+'= Метод  : оплата дней в команлировке
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .days = 0 Then
+			Msg.Write .FormatMessage("Командировки: Для '%A' не указано количество дней"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		If .tariff = 0 Then
+			Msg.Write .FormatMessage("Командировки: Для '%A' не указан среднедневной тариф"), vbCritical, _
+                .FormatNavigateString("agent", "properties")
+		End If
+		.sum = .tariff * .days
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+'		.long1 = .code.dbcode
+		SetDb(Tr)
+	End With
+End Sub</method></methods></code></folder><folder name="09 Прочие"><code code="091" name="Индексация" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0310"/><code code="0320"/><code code="0115"/><code code="0250"/><code code="0260"/><code code="0270"/><code code="0440"/></depends><methods><method parent="091" code="091а" name="Индексация (автомат.)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/09/2006 14:47:01
+'= Автор  : admin
+'= Код    : 091 Индексация
+'= Метод  : Индексация (автомат.)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .DependsW.Sum
+		If .Tariff &gt; .Sum3 Then .Tariff = .Sum3
+		.Sum1 = .Tariff * .Sum2 / 100.0
+		.Sum = .Sum1
+		.DbCode = .Long1
+	End With
+End Sub
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim Ag
+
+	With Tr
+		.Sum2 = CalcKIndex(.Agent.Prop("Базовый месяц для индексации"), .WPeriod.FirstDay)
+		.Sum3 = Workarea.UTable(USRTBL_LGT).GetValue(1, USRTBL_MINLIF, 2)	
+	End With
+
+	SetDb(Tr)
+
+End Sub
+
+</method><method parent="091" code="091п" name="Индексация" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= "Идеал"
+'==============================================
+'= Акцент 7.0 
+'= Создан : 02/03/2004 17:55:24
+'= Изменён: 27/04/2004 15:55:24
+'= Автор  : Alib Ezbar
+'= Код    : 091 Индексация
+'= Метод  : Индексация
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .Tariff = 0 Then .Tariff = .DependsW.Sum ' сумма всех "за когда"
+		' не более чем .Sum2
+		If .Tariff &gt; .Sum2 Then
+			.Tariff = .Sum2
+		End If
+		.Sum = .Tariff * .Sum1 / 100.0
+		.DbCode = .Long1
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub		
+		' если это не сотрудник, то тоже ничего не делаем
+		If .Agent.Type &lt;&gt; 3 Then Exit Sub
+
+		If workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))="02" Then
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If .Agent.Prop(PROP_TRUD) Then
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If .PDocument Is Nothing Then
+			Msg.Write "Индексация должна расчитываться только из документа"
+		Else
+			' берем суммы из документа		
+			.Sum1 = .PDocument.Sum1
+			.Sum2 = .PDocument.Sum2
+			SetDb(Tr)
+		End If
+	End With
+End Sub
+
+</method></methods></code><code code="095" name="Прочие (не обл.)" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="095" code="095w" name="Прочие (не обл.)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 16/08/2004 17:01:20
+'= Автор  : admin
+'= Код    : 095 Прочие
+'= Метод  : Прочие
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+			SetDb(Tr)		
+	End With
+End Sub
+
+</method></methods></code><code code="096" name="Прочие (обл.)" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="096" code="096w" name="Прочие (обл.)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 17/08/2004 10:10:53
+'= Автор  : admin
+'= Код    : 096 Прочие (обл.)
+'= Метод  : Прочие (обл.)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+			SetDb(Tr)		
+	End With
+End Sub
+</method></methods></code><code code="098" name="молоко" type="101" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="098" code="098р" name="молоко" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 14/09/2004 15:21:05
+'= Автор  : admin
+'= Код    : 098р молоко
+'= Метод  : молоко (вручную)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Sum = .Tariff
+		.DbCode = .Long1
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		SetDb(Tr)
+	End With
+End Sub
+</method></methods></code></folder></folder><folder name="2 Удержания"><folder name="22 По исполнит. листам"><code code="2210" name="Штраф" type="102" db="661" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="2210" code="2210р" name="Штраф" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 03/02/2004 10:23:51
+'= Автор  : admin
+'= Код    : 2210 Штраф
+'= Метод  : Штраф
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+</method></methods></code><code code="2220" name="Алименты" type="102" db="661" cr="377" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="2430а"/><code code="2430"/><code code="2420а"/><code code="2420"/><code code="2410а"/><code code="2410"/><code code="2400а"/><code code="2400"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0420"/><code code="0410"/><code code="2500а"/><code code="2500"/><code code="0510"/><code code="0520"/><code code="0310"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/><code code="0630"/><code code="0450"/></depends><methods><method parent="2220" code="2220п" name="Алименты" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 01/03/2004 11:49:59
+'= Автор  : Alib Ezbar
+'= Код    : 2220 Алименты
+'= Метод  : Алименты
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dep
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		Set dep = Tr.Depends
+		.sum2 = dep.Sum
+		
+		If .Sum1 = 0 Then
+			.Tariff = .Sum3
+		Else
+			.Sum3 = Round2(.sum2 * .sum1 / 100, 2)
+			.tariff = .Sum3
+		End If
+
+		.sum = .tariff
+	End With
+End Sub
+
+'==============================================
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Then Exit Sub
+
+		If .agent.prop(PROP_ALI)&lt;= 0 Then 
+			.AgID = 0
+			Exit Sub
+		End If
+
+		If Tr.ApplySource = "Sum3" Then
+			If .Sum3 &lt;&gt; Round2(.sum2 * .sum1 / 100, 2) Then .Sum1 = 0
+		ElseIf Tr.ApplySource &lt;&gt; "Sum1" Then
+			.sum1 = .agent.prop(PROP_ALI)
+		End If
+
+	End With
+End Sub</method></methods></code></folder><folder name="23 Прочие"><code code="2300" name="Прочие" type="102" db="661" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="2300" code="2300р" name="Прочие" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="2320" name="Суда (долг)" type="102" db="661" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="2320" code="2320р" name="Ссуда (долг)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code></folder><folder name="24 Обязательные 2011"><code code="2140" name="Проф. взнос" type="102" db="661" cr="377" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0210"/><code code="0220"/><code code="0240"/><code code="0230"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="0310"/><code code="091"/><code code="0320"/><code code="0115"/><code code="0610"/><code code="0250"/><code code="096"/><code code="0260"/><code code="0270"/><code code="0630"/></depends><methods><method parent="2140" code="2140w" name="Проф. взнос" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'					И Д Е А Л
+'==============================================
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:23:48
+'= Автор  : admin
+'= Код    : 2140 Профсоюз
+'= Метод  : Профс - пр-ма
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	CalcSum = 0
+
+	With Tr
+		If .Long1 Then
+			If .String1 = "07" Then
+				CalcSum = - Round2(lk.SumWD, 2)
+			Else
+				CalcSum = Round2(.DependsW.Sum / 100.00, 2) '1%
+			End If
+		End If 
+
+		CalcSum = CalcSum - .LookUp.SumWD
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			.Long1 = (Not IsAgDismiss(.Agent, .wperiod) And .Agent.Type = 3 And .Agent.Prop("Профсоюз")) 
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(.Agent.Prop(PROP_DISDOHOD_TAG))
+		End If
+	End With
+End Sub
+
+</method><method parent="2140" code="2141m" name="Проф. взнос корр" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method><method parent="2140" code="2142m" name="Профю взнос Аванс" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 20/12/2005 14:14:19
+'= Автор  : admin
+'= Код    : 2140 Проф. взнос
+'= Метод  : Проф. взнос Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim CalcSum
+
+	With Tr
+		.Tariff = .DependsW.Sum
+		CalcSum = Round2(.Tariff * .Sum2 / 100, 2)
+		.Sum1 = CalcSum
+		.Sum = CalcSum
+	End With
+
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			If .Agent.Prop("Профсоюз") Then
+				.Sum2 = 1	' 1% 		ставка налога
+			Else
+				.Sum2 = 0
+			End If
+		End If
+	End With
+End Sub
+</method></methods></code><code code="2400" name="НДФЛ" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="2430а"/><code code="2430"/><code code="2440"/><code code="2420а"/><code code="2420"/><code code="2410а"/><code code="2410"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="2460"/><code code="2450"/><code code="2460а"/><code code="2450а"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="096"/><code code="0620"/><code code="0610"/><code code="0600"/><code code="0250"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/><code code="0450"/><code code="0440"/><code code="0550"/><code code="0540"/></depends><methods><method parent="2400" code="2401" name="НДФЛ" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 17:30:56
+'= Автор  : admin
+'= Код    : 2400 НДФЛ
+'= Метод  : НДФЛ
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TaxSum, PrevTaxSum
+	Dim ES, SumTaxOver, IsNew
+	Dim TaxBase
+
+	With Tr
+		.Tariff = .DependsW.Sum '+ PrevTaxSum
+		If .Tariff &lt; 0 Then .Tariff = 0
+
+		IsNew = (.WPeriod.Year &gt; 2012 Or (.WPeriod.Year = 2012 And .WPeriod.Month &gt; 3))
+
+		If IsNew Then
+			' исключаем сумму налога, начисленного на аванс
+			PrevTaxSum = GetSumAgByMtdPP(.AgID, workarea.getcodeid("2400а"), .CperiodID)
+			TaxBase = .tariff 
+		Else
+			' исключаем сумму налога, начисленного на аванс
+			PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+			TaxBase = .DependsW.SumIN '+ PrevTaxSum
+		End If
+
+		If TaxBase &gt; .Sum3 Then
+			If IsNew Then
+				TaxSum = CalcTaxNew(Tr, TaxBase)
+			Else
+				TaxSum = CalcTaxOld(Tr, TaxBase)
+			End If
+
+			TaxSum = Round2(TaxSum, 2)
+
+		Else
+			TaxSum = Round2(.Tariff * 0.15, 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum - .LookUp.SumWD
+
+		'	по просьбам трудящихся (беженцев и угнетенных ДНР) 
+		'If .Sum &lt; 0 Then .Sum = 0
+	End With
+End Sub
+'---
+'
+'---
+Function CalcTaxNew(Tr, TaxBase)
+	CalcTaxNew = tr.Sum3 * 0.15 + (TaxBase - Tr.Sum3) * iif(Tr.WPeriod.Year &lt; 2015, 0.17, 0.2)
+End Function
+'---
+'
+'---
+
+Function CalcTaxOld(Tr, TaxBase)
+	Dim PayAche, PayRoll
+	Dim TaxSum, SumTaxOver
+
+	With Tr
+
+		PayAche = GetCodeSumW(.Depends, "0046")
+		PayRoll = TaxBase - PayAche
+
+		If TaxBase &gt; .Sum2 Then
+			SumTaxOver = (.Sum2 - .Sum3)
+		Else
+			SumTaxOver = (TaxBase - .Sum3)
+		End If
+
+		If PayAche = 0 Then
+			TaxSum = .Sum3 * 0.964 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.036) * 0.17
+		ElseIf PayRoll = 0 Then
+			TaxSum = .Sum3 * 0.98 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.17
+		Else
+			TaxSum = PayRoll * 0.964 * 0.15
+			TaxSum = TaxSum + (PayAche - TaxBase + .Sum3) * 0.98 * 0.15
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.17
+		End If
+
+		CalcTaxOld = TaxSum
+	End With
+End Function
+'---
+'
+'---
+Function GetCodeSumW(Deps, Code)
+	Dim i, CodeDeps, SumW
+
+	CodeID = Workarea.GetCodeID(Code)
+	SumW = 0
+
+	If CodeID &lt;&gt; 0 Then
+	
+		Set CodeDeps = Workarea.Code(CodeID).Depends
+
+		For i = 1 To CodeDeps.Count
+			SumW = SumW + GetCodeSum(deps, CodeDeps.Item(i).Code)
+		Next
+	End If
+
+	GetCodeSumW = SumW
+
+End Function
+'---
+'
+'---
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+End Function
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		' Максимальный доход для НДФЛ
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+
+		' Максимальный доход
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		
+	End With
+End Sub
+'---
+'
+'---
+
+
+
+</method><method parent="2400" code="2401m" name="НДФЛ (корректировка)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method><method parent="2400" code="2402" name="НДФЛ (шахтеры)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 12/03/2011 13:11:52
+'= Автор  : admin
+'= Код    : 2400 НДФЛ
+'= Метод  : НДФЛ (шахтеры)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim TaxSum, PrevTaxSum
+	Dim PayAche, PayRoll
+	Dim ES, SumTaxOver
+
+	With Tr
+		' исключаем сумму налога, начисленного на аванс
+		PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+
+		.Tariff = .DependsW.Sum '+ PrevTaxSum
+		If .Tariff &lt; 0 Then .Tariff = 0
+
+		IsNew = (.WPeriod.Year &gt; 2012 Or (.WPeriod.Year = 2012 And .WPeriod.Month &gt; 3))
+
+		If IsNew Then
+			TaxBase = .DependsW.Sum '+ PrevTaxSum
+		Else
+			TaxBase = .DependsW.SumIN '+ PrevTaxSum
+		End If
+
+		If TaxBase &gt; .Sum3 Then
+			If IsNew Then
+				TaxSum = CalcTaxNew(Tr, TaxBase)
+			Else
+				TaxSum = CalcTaxOld(Tr, TaxBase)
+			End If
+
+			TaxSum = Round2(TaxSum, 2)
+
+		Else
+			TaxSum = Round2(.Tariff * 0.10, 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum - .LookUp.SumWD
+
+		If .Sum &lt; 0 Then .Sum = 0
+	End With
+End Sub
+'---
+'
+'---
+Function CalcTaxNew(Tr, TaxBase)
+	CalcTaxNew = tr.Sum3 * 0.10 + (TaxBase - Tr.Sum3) * 0.10
+End Function
+'---
+'
+'---
+
+Function CalcTaxOld(Tr, TaxBase)
+	Dim PayAche, PayRoll
+	Dim TaxSum, SumTaxOver
+
+	With Tr
+
+		PayAche = GetCodeSumW(.Depends, "0046")
+		PayRoll = TaxBase - PayAche
+
+		If TaxBase &gt; .Sum2 Then
+			SumTaxOver = (.Sum2 - .Sum3)
+		Else
+			SumTaxOver = (TaxBase - .Sum3)
+		End If
+
+		If PayAche = 0 Then
+			TaxSum = .Sum3 * 0.964 * 0.10
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.036) * 0.10
+		ElseIf PayRoll = 0 Then
+			TaxSum = .Sum3 * 0.98 * 0.10
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.10
+		Else
+			TaxSum = PayRoll * 0.964 * 0.10
+			TaxSum = TaxSum + (PayAche - TaxBase + .Sum3) * 0.98 * 0.10
+			TaxSum = TaxSum + ((TaxBase - .Sum3) - SumTaxOver * 0.02) * 0.10
+		End If
+
+		CalcTaxOld = TaxSum
+	End With
+End Function
+'---
+'
+'---
+Function GetCodeSumW(Deps, Code)
+	Dim i, CodeDeps, SumW
+
+	CodeID = Workarea.GetCodeID(Code)
+	SumW = 0
+
+	If CodeID &lt;&gt; 0 Then
+	
+		Set CodeDeps = Workarea.Code(CodeID).Depends
+
+		For i = 1 To CodeDeps.Count
+			SumW = SumW + GetCodeSum(deps, CodeDeps.Item(i).Code)
+		Next
+	End If
+
+	GetCodeSumW = SumW
+
+End Function
+'---
+'
+'---
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+End Function
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		
+	End With
+End Sub
+'---
+'
+'---
+</method></methods></code><code code="2400а" name="НДФЛ (аванс)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/><code code="2430а"/><code code="2420а"/><code code="2410а"/><code code="2460а"/><code code="2450а"/></depends><methods><method parent="2400а" code="2401а" name="НДФЛ (аванс)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 18:08:34
+'= Автор  : admin
+'= Код    : 2400a НДФЛ (аванс)
+'= Метод  : НДФЛ (аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, TaxSum, PrevTaxSum
+
+	With Tr
+		' исключаем сумму налога, начисленного на аванс
+		PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+		.Tariff = .DependsW.Sum + PrevTaxSum
+
+		If .Tariff &gt; .Sum3 Then
+			TaxSum = Round2((.Tariff - .Sum3) * iif(tr.wperiod.year &lt; 2015, 0.17, 0.2) + .Sum3 * 0.15, 2)
+		Else
+			TaxSum = Round2(.Tariff * 0.15, 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum
+		If .sum &lt; 0 Then .sum = 0
+	End With
+End Sub
+
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+		
+	End With
+End Sub
+</method><method parent="2400а" code="2402а" name="НДФЛ (аванс, шахтеры)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 12/03/2011 13:15:55
+'= Автор  : admin
+'= Код    : 2400а НДФЛ (аванс)
+'= Метод  : НДФЛ (аванс, шахтеры)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, TaxSum, PrevTaxSum
+
+	With Tr
+		' исключаем сумму налога, начисленного на аванс
+		PrevTaxSum = GetCodeSum(.DependsW, "2400а")
+		.Tariff = .DependsW.Sum + PrevTaxSum
+
+		If .Tariff &gt; .Sum3 Then
+			TaxSum = Round2((.Tariff - .Sum3) * 0.10 + .Sum3 * 0.10, 2)
+		Else
+			TaxSum = Round2(.Tariff * 0.10, 2)
+		End If
+
+		.Sum = TaxSum - PrevTaxSum
+		If .sum &lt; 0 Then .sum = 0
+	End With
+End Sub
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Then Exit Sub
+
+		.Sum3 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAX_TAX,2)
+		
+	End With
+End Sub
+
+</method></methods></code><code code="2410" name="ЕСВ (базовый)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="2410а"/></depends><methods><method parent="2410" code="2411" name="ЕСВ (базовый)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 10:46:39
+'= Автор  : admin
+'= Код    : 2410 ЕСВ
+'= Метод  : ЕСВ базовый
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If Not .Long1 And Not .Agent.Prop("Инвалид") Then
+			' если не трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD - .LookUp.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.036
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	End With
+End Sub
+
+</method><method parent="2410" code="2411m" name="ЕСВ (базовый, корректировка)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="2410а" name="ЕСВ (базовый, аванс)" type="102" db="" cr="661" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods><method parent="2410а" code="2411а" name="ЕСВ (базовый, аванс)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 16:09:58
+'= Автор  : admin
+'= Код    : 2410а ЕСВ (базовый, аванс)
+'= Метод  : ЕСВ (базовый, аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If Not (.Long1 Or .Agent.Prop("Инвалид")) Then
+			' если не трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+
+		.Sum3 = 0.036
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	
+	End With
+End Sub
+
+</method></methods></code><code code="2420" name="ЕСВ (больничные)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="2420а"/><code code="2410а"/><code code="2410"/><code code="0420"/><code code="0410"/></depends><methods><method parent="2420" code="2421" name="ЕСВ (больничные)" methodtype="2" db="" cr="661" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 12:46:13
+'= Автор  : admin
+'= Код    : 2412 ЕСВ (больничные)
+'= Метод  : ЕСВ (больничные)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+
+	With Tr
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+'		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+'								CalcDependsCodeSum("2410а", .DependsW)
+
+		WorkedPaySum = CalcSumByPeriod(.AgID, workarea.getcodeid("2410"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2410а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали сумму аванса по налогу
+		PrevTax = GetCodeSum(.DependsW, "2421а")
+
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If MaxSum &lt;= 0 Then
+			.Tariff = 0
+		ElseIf .Tariff &gt; MaxSum Then
+			.Tariff = MaxSum
+		End If
+
+		.Sum = .Tariff * .Sum3 - PrevTax - .LookUp.SumWD
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+
+</method><method parent="2420" code="2421m" name="ЕСВ (больничные, корректировка)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="2420а" name="ЕСВ (больничные, аванс)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="2420а" code="2421а" name="ЕСВ (больничные, аванс)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 16:10:17
+'= Автор  : admin
+'= Код    : 2420а ЕСВ (больничные, аванс)
+'= Метод  : ЕСВ (больничные, аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+
+	With Tr
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+'		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+'								CalcDependsCodeSum("2410а", .DependsW)
+
+		WorkedPaySum = CalcSumByPeriod(.AgID, workarea.getcodeid("2410"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2410а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали сумму аванса по налогу
+		PrevTax = GetCodeSum(.DependsW, "2421а")
+
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If Not (.Tariff &lt; MaxSum Or MaxSum &lt; 0) Then
+			.Tariff = MaxSum
+		End If
+
+		.Sum = .Tariff * .Sum3 - PrevTax - .LookUp.SumWD
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+
+
+</method></methods></code><code code="2430" name="ЕСВ (трудовой договор)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="2430а"/></depends><methods><method parent="2430" code="2431" name="ЕСВ (трудовой договор)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">	'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 12:47:23
+'= Автор  : admin
+'= Код    : 2413 ЕСВ (трудовой договор)
+'= Метод  : ЕСВ (трудовой договор)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum
+
+	With Tr
+		If .Long1 Then
+			' если трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD - .LookUp.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+
+		.Sum3 = 0.026
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+
+		
+	End With
+End Sub
+
+</method><method parent="2430" code="2431m" name="ЕСВ (трудовой договор, корректировка)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="2430а" name="ЕСВ (трудовой договор, аванс)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods><method parent="2430а" code="2431а" name="ЕСВ (трудовой договор, аванс)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 16:10:43
+'= Автор  : admin
+'= Код    : 2431а ЕСВ (трудовой договор, аванс)
+'= Метод  : ЕСВ (трудовой договор, аванс)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum
+
+	With Tr
+		If .Long1 Then
+			' если трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+
+		.Sum3 = 0.026
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	End With
+End Sub
+
+</method></methods></code><code code="2440" name="Льгота по НДФЛ" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/></depends><methods><method parent="2440" code="2441" name="Льгота по НДФЛ" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 28/12/2010 18:21:58
+'= Автор  : admin
+'= Код    : 2440 Льгота по НДФЛ
+'= Метод  : Льгота по НДФЛ
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim dismiss
+	Dim AgSum, ChildSum
+	Dim MaxSum
+
+	With Tr
+		.Sum1 = 0
+		.Tariff = 0
+
+		If .String1 &lt;&gt; "02" Then
+			If .Agent.Prop(PROP_TRUD) = False Then
+
+				If IsNull(.Agent.Prop(PROP_UVOLEN)) Then
+					dismiss = False
+				Else
+					mm = Month(.Agent.Prop(PROP_UVOLEN))
+					yy = Year(.Agent.Prop(PROP_UVOLEN))
+					dismiss = (Month(.wperiod.firstday) &lt; mm And Year(.wperiod.firstday) &lt;= yy)
+				End If
+
+				If Not dismiss Then 
+					.Tariff = .DependsW.Sum
+					If .Tariff &lt;&gt; 0 Then
+
+						If Not .Long3 Then
+							MaxSum = .Sum2
+						Else
+							MaxSum = .Sum2 * .Long1
+						End If
+
+						AgSum = 0
+
+						If MaxSum =&gt; .Tariff Then
+							Select Case .String2
+								Case "01"						' 	100%
+									AgSum = .Sum3 
+								Case "02"						'	150% * кол-во детей
+									AgSum = .Sum3 * 1.5
+									If .Long1 &lt;&gt; 0 Then AgSum = AgSum * .Long1		
+								Case "03"						'	200%
+									AgSum = .Sum3 * 2
+									If .Long1 &lt;&gt; 0 Then AgSum = AgSum * .Long1
+								Case "04"						'	100% * кол-во детей
+									If .Long1 &lt;&gt; 0 Then AgSum = .Sum3 * .Long1		
+
+							End Select
+						End If
+
+						.Sum1 = AgSum - .LookUp.SumWD
+					End If
+				End If
+			End If
+		End If
+		.Sum = .Sum1
+	End With
+End Sub
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim Ag
+	Dim Tbl
+
+	With Tr
+		If .ApplySource = "MethodID" Or .ApplySource = "AgentID" Then
+			Set Ag = .Agent
+			.Long1 = Ag.Prop(PROP_DISCHILD_TAG)	'	количество детей
+			.Long2 = Ag.Prop(PROP_DISQUANT_TAG)	'	признак льготы
+			.Long3 = Ag.Prop(PROP_ADD_LGT)			'	увеличивать максимальный льготный доход
+
+			.String1 = workarea.enum(ENUM_DISDOHOD).itemnameid(Ag.Prop(PROP_DISDOHOD_TAG))	' Признак дохода
+			.String2 = workarea.enum(ENUM_DISCOUNT).ItemNameID(.Long2) 								' признак льготы
+
+			Set Tbl = WorkArea.UTable(USRTBL_LGT)
+
+			.Sum2 = Tbl.GetValue(1,USRTBL_DLTM,2)		' Максимальный льготный доход
+			.Sum3 = Tbl.GetValue(1,USRTBL_DPAY,2)		' Размер льготы
+
+		End If
+	End With
+End Sub
+'----
+'
+'----
+
+
+</method></methods></code><code code="2450" name="ЕСВ (декретные)" type="102" db="657" cr="" percent="0" syscode="" isservice="0"><depends><code code="0430"/></depends><methods><method parent="2450" code="2451" name="ЕСВ (декретные)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 27/08/2013 14:29:33
+'= Изменен : 13/09/2013
+'= Автор  : admin
+'= Код    : 2450 ЕСВ (декретные)
+'= Метод  : ЕСВ (декретные)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+	
+	With Tr
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+'		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+'								CalcDependsCodeSum("2410а", .DependsW)
+
+		WorkedPaySum = CalcSumByPeriod(.AgID, workarea.getcodeid("2410"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2410а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали базовую сумму для расчета ЕСВ для больничных
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали сумму аванса по налогу
+		PrevTax = 0
+'		PrevTax = GetCodeSum(.DependsW, "2451а")
+		
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If MaxSum &lt;= 0 Then
+			.Tariff = 0
+		ElseIf .Tariff &gt; MaxSum Then
+			.Tariff = MaxSum
+		End If
+
+		.Sum = .Tariff * .Sum3 - PrevTax - .LookUp.SumWD
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+
+</method></methods></code><code code="2450а" name="ЕСВ (декретные, аванс)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="2450а" code="2451а" name="ЕСВ (декретные, аванс)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 27/08/2013 14:29:33
+'= Изменен : 13/09/2013
+'= Автор  : admin
+'= Код    : 2450 ЕСВ (декретные)
+'= Метод  : ЕСВ (декретные)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim BaseSum, WorkedPaySum, PrevTax, MaxSum
+	
+	With Tr
+		If .Agent.Prop("Инвалид") Then
+			.Sum = 0
+			.Tariff = 0
+			Exit Sub		
+		End If
+
+		' скорректировали на сумму налога, начисленного на аванс
+		' считаем, что удержание это только сумма налога, начисленного на аванс
+		.Tariff = .DependsW.SumIN
+
+		' посчитали базовую сумму для расчета ЕСВ для основной ЗП
+'		WorkedPaySum = CalcDependsCodeSum("2410", .DependsW) + _
+'								CalcDependsCodeSum("2410а", .DependsW)
+
+		WorkedPaySum = CalcSumByPeriod(.AgID, workarea.getcodeid("2410"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2410а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали базовую сумму для расчета ЕСВ для больничных
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420"), .wperiod.firstday, .wperiod.lastday)
+		WorkedPaySum = WorkedPaySum + _
+								CalcSumByPeriod(.AgID, workarea.getcodeid("2420а"), .wperiod.firstday, .wperiod.lastday)
+
+		' посчитали сумму аванса по налогу
+		PrevTax = 0
+'		PrevTax = GetCodeSum(.DependsW, "2451а")
+		
+		' уменьшили границу на сумму ЗП
+		MaxSum = .Sum2 - WorkedPaySum
+
+		If MaxSum &lt;= 0 Then
+			.Tariff = 0
+		ElseIf .Tariff &gt; MaxSum Then
+			.Tariff = MaxSum
+		End If
+
+		.Sum = .Tariff * .Sum3 - PrevTax - .LookUp.SumWD
+	End With
+End Sub
+
+Function GetCodeSum(deps, Code)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .Sum
+			End If
+		End With
+	Next
+	
+	GetCodeSum = CodeSum
+
+End Function
+
+
+Function CalcDependsCodeSum(Code, Deps)
+	Dim i, CodeSum
+
+	CodeSum = 0
+
+	For i = 1 To Deps.Count
+		With Deps.Item(i)
+			If .Code.Code = Code Then
+				CodeSum = CodeSum + .DependsW.Sum
+			End If
+		End With
+	Next
+	
+	CalcDependsCodeSum = CodeSum
+
+End Function
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		If .Agent.Prop("Инвалид") Then Exit Sub		
+
+		.Sum3 = 0.02			
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+	End With
+End Sub
+
+</method></methods></code><code code="2460" name="ЕСВ (инвалиды)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="2460а"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="096"/><code code="0610"/><code code="0250"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/><code code="0550"/></depends><methods><method parent="2460" code="2461" name="ЕСВ (инвалиды)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 02/03/2015 17:16:46
+'= Автор  : admin
+'= Код    : 2460 ЕСВ (инвалиды)
+'= Метод  : ЕСВ (инвалиды)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If Not .Long1 And .Agent.Prop("Инвалид") Then
+			' если не трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD - .LookUp.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		If Not .Agent.Prop("Инвалид") Then Exit Sub
+
+		.Sum3 = 0.036
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	End With
+End Sub
+
+</method></methods></code><code code="2460а" name="ЕСВ (инвалиды, аванс)" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods><method parent="2460а" code="2461а" name="ЕСВ (инвалиды, аванс" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 02/03/2015 17:16:46
+'= Автор  : admin
+'= Код    : 2460 ЕСВ (инвалиды)
+'= Метод  : ЕСВ (инвалиды)
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If Not .Long1 And .Agent.Prop("Инвалид") Then
+			' если не трудовой договор
+			.Tariff = .DependsW.SumIN
+
+			If .Tariff &gt;= .Sum2 Then
+				.Tariff = .Sum2
+			End If
+
+			' откоректировали на сумму налога, начисленного на аванс
+			' считаем, что удержание это только сумма налога, начисленного на аванс
+			.Sum = Round2(.Tariff * .Sum3, 2) - .DependsW.SumWD - .LookUp.SumWD
+		Else
+			.Tariff = 0
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID = 0 Or .Applysource = "Sum3" Or .Applysource = "Sum2" Then Exit Sub
+		If Not .Agent.Prop("Инвалид") Then Exit Sub
+
+		.Sum3 = 0.036
+		.Sum2 = WorkArea.UTable(USRTBL_LGT).GetValue(1,USRTBL_MAXCY,2)
+		.Long1 = .Agent.Prop(PROP_TRUD)
+	End With
+End Sub
+
+</method></methods></code></folder><folder name="25 Военный сбор"><code code="2500" name="Военный сбор" type="102" db="642" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="2500а"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="096"/><code code="0620"/><code code="0610"/><code code="0600"/><code code="0250"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/><code code="0450"/><code code="0440"/><code code="0550"/><code code="0540"/></depends><methods><method parent="2500" code="2501" name="Военный сбор 1,5%" methodtype="2" db="" cr="" percent="1.5" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 18/08/2014 13:44:28
+'= Автор  : admin
+'= Код    : 2500 Военный сбор
+'= Метод  : Военный сбор 1,5%
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .dependsw.SumIN 
+		.Sum = Round2(.Tariff * 0.015, 2) - .LookUp.SumWD - GetSumAgByMtdPP(.AgID, workarea.getcodeid("2500а"), .WperiodID)
+
+	End With
+End Sub
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		
+	End With
+End Sub
+
+'---
+'
+'---
+</method><method parent="2500" code="2501m" name="Военный сбор 1,5% (корр)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="2500а" name="Военный сбор 1,5% (аванс)" type="102" db="642" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods><method parent="2500а" code="2501а" name="Военный сбор 1,5% (аванс)" methodtype="2" db="" cr="" percent="1.5" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 18/08/2014 13:44:28
+'= Автор  : admin
+'= Код    : 2500 Военный сбор
+'= Метод  : Военный сбор 1,5%
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		.Tariff = .dependsw.SumIN 
+		.Sum = Round2(.Tariff * 0.015, 2) - .dependsw.Sumwd 
+	End With
+End Sub
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	With Tr
+		If .AgID=0 Then Exit Sub
+		
+	End With
+End Sub
+
+'---
+'
+'---
+</method></methods></code></folder></folder><folder name="3 Выплаты"><code code="3010" name="Выплата зарплаты" type="102" db="" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="3010" code="3010п" name="Выплата зарплаты" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="ВЫПЛ">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 04/11/2003 09:10:50
+'= Автор  : admin
+'= Код    : 3010 Выплата зарплаты
+'= Метод  : Выплата зарплаты
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		If .Long1 &lt;&gt; 0 Then
+			If Not .Long3 Then
+				.Sum = .Tariff
+			Else
+				.Tariff = Int(.Tariff)
+				.Sum = .Tariff
+			End If
+		Else
+			.Sum = 0
+		End If
+	End With
+End Sub
+
+'----
+'
+'----
+Sub Method_OnApply(Tr)
+	Dim nType
+	Dim PrevSum
+	Dim TotalSum
+
+	With Tr
+		If .AgID = 0 Then Exit Sub
+		If .ApplySource = "Long3" Then
+			If Not .Long3 Then
+				.Tariff = .Sum1
+			Else
+				.Tariff = Int(.Sum1)
+			End If
+			Exit Sub
+		End If
+
+		'PrevSum = GetPverSum(.AgID, .CodeID, .WPeriod.Month, .WPeriod.Year)
+		'TotalSum = Workarea.CreateIntObject("Calc").GetAgentSum(.AgID, .WPeriod.Month, .WPeriod.Year) '- PrevSum
+		TotalSum = ideal_GetAgentSum(.AgID, .WPeriod.ID) '- PrevSum
+
+		If TotalSum &lt; 0 Then 
+			.Tariff = 0
+			.Sum1 = 0
+		Else
+			.Tariff = TotalSum
+			.Sum1 = TotalSum
+		End If
+
+		.Long2 = True ' Выплачена
+
+		If .Long1 = 0 Then
+			nType = .Agent.Prop(PROP_DISDOHOD_TAG)
+
+			If nType = 0 Then
+				.Long1 = 1
+			Else
+				.Long1 = WorkArea.Enum(ENUM_DISDOHOD).ItemNameID(nType)
+			End If
+		End If
+
+	End With
+End Sub
+'----
+'
+'----
+Function GetPverSum(AgID, CodeID, nMonth, nYear)
+	Dim pfind
+	Dim pTransColl
+
+	Set pfind = Workarea.CreateIntObject("PFinder")
+	Set pTransColl = pfind.FindPTrans("agent_code_c", AgID, CodeID, nMonth, nYear)
+
+	GetPverSum = pTransColl.RawSum
+End Function
+'----
+'
+'----
+</method></methods></code><code code="3020" name="Выплата аванса" type="102" db="661" cr="301" percent="0" syscode="" isservice="0"><depends><code code="0117"/><code code="2430а"/><code code="2420а"/><code code="2410а"/><code code="2400а"/><code code="2450а"/><code code="2460а"/><code code="2500а"/></depends><methods><method parent="3020" code="3020m" name="Выплата аванса" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 22/12/2005 21:01:44
+'= Автор  : admin
+'= Код    : 3020 Аванс
+'= Метод  : Аванс
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+
+		If  .Long1 Then 
+			If Not .Long3 Then
+				.Tariff = .DependsW.Sum
+			Else
+				.Tariff = Int(.DependsW.Sum)
+			End If
+		Else
+			.Tariff = 0
+		End If
+
+		.Sum = .Tariff
+	End With
+
+End Sub
+
+Sub Method_OnApply(Tr)
+	Tr.Long1 = True
+End Sub</method></methods></code></folder><folder name="4 Прочее"><code code="4000" name="Персонификация" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="4000" code="4000e" name="Персонификация (табл. 7)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method><method parent="4000" code="4000r" name="Персонификация (табл. 5)" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method><method parent="4000" code="4000w" name="Персонификация" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="4010" name="1ДФ" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="4010" code="4010w" name="1ДФ" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method><method parent="4010" code="4011" name="корректировка 1ДФ" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code><code code="4020" name="Перерасчёт подоходного" type="102" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0240"/></depends><methods><method parent="4020" code="4020m" name="Перерасчёт подоходного" methodtype="0" db="" cr="661" percent="0" mode="0" required="0" syscode=""></method></methods></code></folder><folder name="9 Вступительный баланс"><code code="9010" name="Долг предприятия" type="101" db="00" cr="661" percent="0" syscode="" isservice="0"><depends/><methods><method parent="9010" code="9010в" name="вручную" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 03/02/2004 10:24:49
+'= Автор  : admin
+'= Код    : 9010 Долг предприятия
+'= Метод  : вручную
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+</method></methods></code><code code="9020" name="Долг работника" type="102" db="661" cr="00" percent="0" syscode="" isservice="0"><depends/><methods><method parent="9020" code="9020в" name="вручную" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode="">'==============================================
+'= "Идеал"
+'----------------------------------------------
+'= Акцент 7.0 
+'= Создан : 03/02/2004 10:24:54
+'= Автор  : admin
+'= Код    : 9020 Долг работника
+'= Метод  : вручную
+'==============================================
+Sub Method_OnCalc(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	With Tr
+		
+	End With
+End Sub
+
+</method></methods></code></folder><folder name="Отчеты"><code code="0023" name="Отчет в пенсионный фонд" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="0620"/><code code="096"/><code code="0610"/><code code="0250"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/><code code="0450"/><code code="0440"/></depends><methods/></code><code code="0024" name="Разовые" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0320"/><code code="0620"/><code code="0610"/><code code="0630"/></depends><methods/></code><code code="0025" name="Больничные" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0420"/><code code="0410"/><code code="0450"/><code code="0440"/><code code="0430"/></depends><methods/></code><code code="0026" name="Отпускные" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0510"/><code code="0520"/></depends><methods/></code><code code="0027" name="Начисления" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="091"/><code code="0310"/><code code="0115"/><code code="0250"/><code code="0270"/><code code="0260"/></depends><methods/></code><code code="0028" name="1ДФ (начисления)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0310"/><code code="0320"/><code code="0115"/><code code="095"/><code code="096"/><code code="0620"/><code code="0610"/><code code="0250"/><code code="0630"/><code code="0530"/><code code="0260"/><code code="0270"/><code code="0450"/><code code="0440"/><code code="0430"/><code code="0550"/><code code="0540"/></depends><methods/></code><code code="0029" name="1ДФ(налоги)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="2400а"/><code code="4010"/></depends><methods/></code><code code="0030" name="1ДФ (выплаты)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="0250"/><code code="0270"/><code code="0260"/></depends><methods/></code><code code="0031" name="Социальные взносы" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods/></code><code code="0040" name="Персонификация 2010 (пенсионный)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods/></code><code code="0041" name="Персонификация 2010 (больничные предпр.)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0410"/></depends><methods/></code><code code="0042" name="Персонификация 2010 (больничные СС)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0420"/><code code="0440"/></depends><methods/></code><code code="0043" name="Персонификация 2010 (отпуск)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0510"/><code code="0530"/></depends><methods/></code><code code="0044" name="Персонификация 2010 (ЗП)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/><code code="0110"/><code code="0530"/></depends><methods/></code><code code="0045" name="ЕСВ 2011 (ЗП)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0320"/><code code="0115"/><code code="0530"/></depends><methods/></code><code code="0046" name="ЕСВ 2011 (больничные)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0420"/><code code="0410"/></depends><methods/></code><code code="0047" name="ЕСВ 2011 (отпускные)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0510"/><code code="0520"/></depends><methods/></code><code code="0048" name="ЕСВ 2013 (декретные)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0430"/></depends><methods/></code></folder><folder name="Приказы"><code code="8001" name="Приказы на неоплачиваемый отпуск" type="101" db="" cr="" percent="0" syscode="" isservice="0"><depends/><methods><method parent="8001" code="8002" name="Приказ на неоплачиваемый отпуск" methodtype="0" db="" cr="" percent="0" mode="0" required="0" syscode=""></method></methods></code></folder><folder name="ФОТ"><code code="2000" name="ЕСВ базовый" type="103" db="92" cr="651" percent="33.2" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="095"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0610"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/></depends><methods><method parent="2000" code="2000-01" name="ЕСВ базовый" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 24/02/2015 12:07:05
+'= Автор  : admin
+'= Код    : 2000 ЕСВ базовый
+'= Метод  : ЕСВ Базовый (ФОТ)
+'==============================================
+'#include "definition.avb"
+
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If Not .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3)  Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum &lt;&gt; 0 Then
+				If Not (.agent.Prop("Совместитель") And Not .agent.Prop("Состоит в трудовых отношениях")) Then 
+					If AgSum &gt; .Sum3 Then AgSum = .Sum3
+
+					If AgSum &lt; .Sum3 / 17 Then 
+						If Not IsAgIsIll(.Agent, .WPeriod.ID) And CheckAllDays(Tr) Then
+							AgSum = .Sum3 / 17
+						End If
+					End If
+				End If
+
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+		End If
+		
+	End With
+End Sub
+'---
+'
+'---
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type &lt;&gt; 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = ParentCode.Percent						' % начислений
+		.Sum2 = ParentCode.threshold					' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub
+'---
+'
+'---
+Function CheckAllDays(Tr)
+	Dim maxHours, maxDays, AgGrID
+
+	AgGrID = Tr.Agent.Prop("График")
+
+	With WorkArea.TimeTable(AgGrID)
+		maxHours = .Hours(tr.wperiod.firstday)
+		maxDays = .Days(tr.wperiod.firstday)
+	End With
+
+	If Tr.DependsW.Hours &lt;&gt; 0 Then
+		CheckAllDays = (Tr.DependsW.Hours &gt;= maxHours)
+	ElseIf Tr.DependsW.Days &lt;&gt; 0 Then
+		CheckAllDays = (Tr.DependsW.Days &gt;= maxDays)
+	Else
+		CheckAllDays = False
+	End If
+
+End Function
+'---
+'
+'---
+</method></methods></code><code code="2000а" name="ЕСВ базовый (аванс)" type="103" db="" cr="" percent="33.2" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code><code code="2001" name="ЕСВ, инвалиды (8,41%)" type="103" db="92" cr="651" percent="8.41" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="095"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0610"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/><code code="0450"/><code code="0440"/></depends><methods><method parent="2001" code="2001-01" name="ЕСВ, инвалиды (8,41%, ФОТ)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/02/2015 11:21:55
+'= Автор  : admin
+'= Код    : 2001 ЕСВ, инвалиды (8,41%)
+'= Метод  : ЕСВ, инвалиды (8,41%, ФОТ)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3) Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum &lt;&gt; 0 Then
+				If AgSum &gt; .Sum3 Then AgSum = .Sum3
+
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+			.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+		End If
+	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type &lt;&gt; 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = ParentCode.Percent						' % начислений
+		.Sum2 = ParentCode.threshold					' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub
+
+</method></methods></code><code code="2001а" name="ЕСВ, инвалиды (8,41%) (аванс)" type="103" db="" cr="" percent="8.41" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code><code code="2002" name="ЕСВ, больничный (33,2%) для всех" type="103" db="" cr="" percent="33.2" syscode="" isservice="0"><depends><code code="0420"/><code code="0410"/><code code="0450"/><code code="0440"/></depends><methods><method parent="2002" code="2002-01" name="ЕСВ, больничный (33,2% для всех, ФОТ)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/02/2015 11:22:51
+'= Автор  : admin
+'= Код    : 2002 ЕСВ, больничный (33,2%) для всех
+'= Метод  : ЕСВ, больничный (33,2% для всех, ФОТ)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If Not .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3) Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum &lt;&gt; 0 Then
+				If AgSum &gt; .Sum3 Then AgSum = .Sum3
+
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+		End If
+	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type &lt;&gt; 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = ParentCode.Percent						' % начислений
+		.Sum2 = ParentCode.threshold					' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub</method></methods></code><code code="2003" name="ЕСВ ГПД (34,7%)" type="103" db="" cr="" percent="34.7" syscode="" isservice="0"><depends><code code="0110"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="096"/><code code="095"/></depends><methods><method parent="2003" code="2003-01" name="ЕСВ ГПД (34,7%, ФОТ)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/02/2015 11:23:02
+'= Автор  : admin
+'= Код    : 2003 ЕСВ ГПД (34,7%)
+'= Метод  : ЕСВ ГПД (34,7%, ФОТ)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If .Agent.Prop("Трудовой договор", .Date3) Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum &lt;&gt; 0 Then
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+
+		End If
+	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type &lt;&gt; 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = ParentCode.Percent						' % начислений
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub</method></methods></code><code code="2004" name="ЕСВ декретные (33.2%)" type="103" db="653" cr="" percent="33.2" syscode="" isservice="0"><depends><code code="0430"/></depends><methods><method parent="2004" code="2004-01" name="ЕСВ декретные (33.2%, ФОТ)" methodtype="2" db="" cr="" percent="0" mode="2" required="0" syscode="">'==============================================
+'= Акцент 7.0 
+'= Создан : 26/02/2015 11:27:49
+'= Автор  : admin
+'= Код    : 2004 ЕСВ декретные (33.2%)
+'= Метод  : ЕСВ декретные (33.2%, ФОТ)
+'==============================================
+Sub Method_OnCalc(Tr)
+	Dim AgSum
+
+	With Tr
+		If Not .Agent.Prop("Инвалид") And Not .Agent.Prop("Трудовой договор", .Date3) Then
+
+			AgSum = .DependsW.Sum
+
+			If AgSum &lt;&gt; 0 Then
+				If AgSum &gt; .Sum3 Then AgSum = .Sum3
+				If AgSum &lt; .Sum3 / 17 Then AgSum = .Sum3 / 17
+				.Tariff = AgSum
+				.Sum = Round2(.Tariff * .Sum1 / 100, 2)
+			Else
+				.Tariff = 0
+				.Sum = 0
+			End If
+		End If
+	
+	End With
+End Sub
+
+Sub Method_OnApply(Tr)
+	Dim ParentCode 
+
+	With Tr
+		If .agent.Type &lt;&gt; 3 Then .agid = 0
+		If .AgID = 0 Then Exit Sub
+
+		Set ParentCode = Tr.Code
+		.Sum1 = ParentCode.Percent						' % начислений
+		.Sum2 = ParentCode.threshold					' предельная сумма
+		.Sum3 = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )	' макс. льготный доход
+		.Date3 = Tr.WPeriod.FirstDay
+
+	End With
+End Sub
+
+
+
+</method></methods></code><code code="2005" name="ЕСВ декретные инвалиды (8.41%)" type="103" db="653" cr="" percent="8.41" syscode="" isservice="0"><depends><code code="0430"/></depends><methods/></code><code code="2010" name="Фонд безработицы (1.3%)" type="103" db="92" cr="653" percent="1.3" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0610"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/></depends><methods/></code><code code="2010а" name="Фонд безраб. (1.5%) (аванс)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code><code code="2020" name="Несчастный случай (1.02%)" type="103" db="92" cr="656" percent="1.02" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0420"/><code code="0410"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0610"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/></depends><methods/></code><code code="2020а" name="ФНС(2,42%) (аванс)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code><code code="2021" name="ФНС, инвалиды (1.51%)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0110"/></depends><methods/></code><code code="2021а" name="ФНС, инвалиды (1.51%) (аванс)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code><code code="2030" name="Нетрудоспособность (1.5%)" type="103" db="92" cr="652" percent="1.5" syscode="" isservice="0"><depends><code code="0110"/><code code="0240"/><code code="0230"/><code code="0220"/><code code="0210"/><code code="0510"/><code code="0520"/><code code="091"/><code code="0320"/><code code="0310"/><code code="0115"/><code code="0620"/><code code="0250"/><code code="096"/><code code="0610"/><code code="0630"/><code code="0530"/><code code="0270"/><code code="0260"/></depends><methods/></code><code code="2030а" name="Фонд соцтраха (1.4%) (аванс)" type="103" db="" cr="" percent="0" syscode="" isservice="0"><depends><code code="0117"/></depends><methods/></code></folder></codes></payroll>

@@ -1,0 +1,27 @@
+<payroll pack="true">
+	<sumbydeps>
+		<item code="2000" isstolen="false" isagree="false" />
+		<item code="2001" isstolen="true" isagree="false" />
+		<item code="2002" isstolen="false" isagree="false" />
+		<item code="2003" isstolen="false" isagree="true" />
+	</sumbydeps>
+	<sumbydbcr>
+		<item db="92" cr="661" />
+		<item db="91" cr="661" />
+		<item db="93" cr="661" />
+		<item db="652" cr="661" />
+		<item db="23" cr="661" />
+	</sumbydbcr>
+
+	<sumbycode>
+		<item code="2220" db="661" cr="377"/>
+		<item code="2410" db="661" cr="6571"/>
+		<item code="2420" db="661" cr="6573"/>
+		<item code="2430" db="661" cr="6572"/>
+		<item code="2400" db="661" cr="6414"/>
+		<item code="2320" db="661" cr="377"/>
+		<item code="2500" db="661" cr="642"/>
+	</sumbycode>
+</payroll>
+
+

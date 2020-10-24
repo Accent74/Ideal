@@ -1,0 +1,106 @@
+Option Explicit
+
+Function GetRS(wPeriodID)
+	Dim Cn
+	Dim Cmd
+
+	Set Cn = WorkArea.AdoConnection
+	Cn.CursorLocation = 2 'курсор на нашей стороне
+
+	Set Cmd = CreateObject("ADODB.Command")
+	Set Cmd.ActiveConnection = Cn 
+
+	Cmd.CommandText = 	"SELECT P_JOURNAL.AG_ID, P_JOURNAL.JP_DB, P_JOURNAL.JP_CR, Sum(P_JOURNAL.JP_SUM) AS [AgSum] " & _
+									"FROM P_JOURNAL WHERE (((P_JOURNAL.JP_DONE)=1) And ((P_JOURNAL.W_PERIOD)=" & CStr(wPeriodID) & "))" & _
+									"GROUP BY P_JOURNAL.AG_ID, P_JOURNAL.JP_DB, P_JOURNAL.JP_CR"
+
+	
+	' сообщаем, что команда это запрос
+	Cmd.CommandType = 1	
+	' выполнили запрос
+	Set GetRS = Cmd.Execute	' выполняем команду 
+
+End Function
+
+'----------
+'
+'----------
+Function GetAccByCode(AccCode)
+
+	GetAccByCode = 0
+
+	If Not IsNull(AccCode) Then
+		If AccCode <> "" Then
+			GetAccByCode = WorkArea.GetAccID(Acccode)
+		End If
+	End If
+
+End Function
+'----------
+'
+'----------
+Function GetCurrentPeriodID()
+	Dim Cn
+	Dim Cmd
+	Dim dStart
+	Dim Rs
+
+	dStart = WorkArea.Period.Start
+
+	Set Cn = WorkArea.AdoConnection
+	Cn.CursorLocation = 2 'курсор на нашей стороне
+
+	Set Cmd = CreateObject("ADODB.Command")
+	Set Cmd.ActiveConnection = Cn 
+
+	Cmd.CommandText = 	"SELECT PP_ID " & _
+									"FROM P_PERIOD " & _
+									"WHERE PP_MONTH=" & CStr(Month(dStart)) & " and PP_YEAR=" & CStr(Year(dStart))
+	
+	' сообщаем, что команда это запрос
+	Cmd.CommandType = 1	
+	' выполнили запрос
+	Set Rs = Cmd.Execute	' выполняем команду 
+
+	If Not Rs.eof Then
+		GetCurrentPeriodID = Rs.Fields(0).Value
+	Else
+		GetCurrentPeriodID = 0
+	End If
+
+End Function
+'----------
+'
+'----------
+Dim Rs
+Dim op
+Dim i
+Dim AgSum
+
+	Set Rs = GetRS(GetCurrentPeriodID())
+
+	If Not rs.eof Then
+		Set op = Workarea.CreateOperation
+		i = 0
+
+		While Not Rs.eof
+			AgSum = Rs.Fields(3).Value
+
+			If AgSum <> 0 Then
+				i = i + 1
+	
+				With Op.Trans(1, i)
+					.AgToID = Rs.Fields(0).Value
+					.AgFromID = .AgToID
+					.AccDbID = GetAccByCode(Rs.Fields(1).Value)
+					.AccCrID = GetAccByCode(Rs.Fields(2).Value)
+					.Sum = AgSum
+				End With
+			End If
+
+			Rs.MoveNext
+		Wend
+
+		Op.Date = WorkArea.Period.Start
+		Op.Save
+	End If

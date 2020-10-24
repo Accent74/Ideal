@@ -1,0 +1,28 @@
+Option Explicit
+
+Dim Sb, Sh
+
+Sub TestCodes(CodeRoot)
+	Dim i
+	Dim RowNo
+
+	For i = 1 To CodeRoot.count
+		With CodeRoot.Item(i)
+			If (.Type = 200) And .MethodType = 2 Then
+'				If Len(.GetScript) < 355 Then
+					RowNo = Sh.InsertRow2
+					Sh.Cell(RowNo, 1).Value = .Code
+					Sh.Cell(RowNo, 2).Value = .Name
+					Sh.Cell(RowNo, 3).Value = Len(.GetScript)
+'				End If
+			Else
+				If .HasChildren Then TestCodes .Children
+			End If
+		End With
+	Next
+End Sub
+
+	Set Sb = App.CreateBook
+	Set Sh = Sb.Sheet1
+	Sh.Rows = 1
+	TestCodes Workarea.Codes

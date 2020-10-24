@@ -1,0 +1,31 @@
+Option Explicit
+
+Dim FSO
+
+Sub CreateMTDFile(FileRoot, Root)
+	Dim i
+	Dim ScrTxt
+	Dim TextFile
+
+	For i = 1 To Root.Count
+		With Root.Item(i)
+			If .Type = 200 Then
+				If .MethodType = 2 Then
+					Set TextFile = FSO.OpenTextFile(FileRoot & .Code & " " & .Name & ".mtd", 2, True)
+					TextFile.WriteLine(.GetScript)
+					TextFile.Close
+				End If
+			End If
+
+			If .HasChildren Then CreateMTDFile FileRoot, .Children
+		End With
+	Next
+
+End Sub
+
+Sub Main
+	Set FSO = CreateObject("Scripting.FileSystemObject")
+	CreateMTDFile "\\Server2003\desigeon\Ideal\updates\ָהואכ\00028\", WorkArea.Code(142).Children
+End Sub
+
+main
