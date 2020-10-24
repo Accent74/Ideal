@@ -1,0 +1,174 @@
+Option Explicit
+'#include "ST74_XML.avb"
+
+Const MSGBOX_CAPTION = "Экспорт Кодов/методов"
+
+Main
+
+'---
+'
+'---
+Sub Main
+	Dim oXML, xmlRoot, xmlChild
+	Dim FileName, i, xmlPayrollRoot
+
+	Set oXML = New xml
+
+	If oXML.Create() Then
+
+		Set xmlPayrollRoot = oXml.xml.CreateElement("payroll")
+		xmlPayrollRoot.Setattribute("name") = workarea.userparam("CONFIG_NAME1")
+		xmlPayrollRoot.Setattribute("version") = workarea.userparam("CONFIG_VERSION1")
+		xmlPayrollRoot.Setattribute("created") = Formatdate2(Now(), "dd/mm/yyyy nn:ss")
+		Set xmlRoot = oXml.xml.CreateElement("codes")
+
+		With workarea.site
+			If .Kind <> 8 Or (.Kind = 8 And .ID = 0) Then 	
+				With Workarea.Codes
+					For i = 1 To .Count
+						AddItem oXml.xml, xmlRoot, .Item(i)
+					Next
+				End With
+			Else
+				AddItem oXml.xml, xmlRoot, Workarea.Code(.ID)
+			End If
+		End With
+
+		xmlPayrollRoot.AppendChild xmlRoot
+		oXML.xml.InsertBefore xmlPayrollRoot, Null
+		FileName = "payroll_codes.xml"
+
+		If Not oXml.Save(FileName, "*.xml") Then
+			MsgBox oXML.ErrorMsg		
+		End If
+	Else
+		MsgBox oXML.ErrorMsg
+	End If
+
+	MsgBox "Экспорт окончен", vbInformation, MSGBOX_CAPTION
+End Sub
+'---
+'
+'---
+Sub 	AddLevel(xml, xmlRoot, Code)
+	Dim i, NewNode, Elem, xmlNewRoot
+
+	If Code.HasChildren Then
+		With Code.Children
+			For i = 1 To .Count
+				AddItem xml, xmlRoot, .Item(i)
+			Next
+		End With
+	End If
+
+End Sub
+'---
+'
+'---
+Function ReadScriptFromFile(ScriptFileName)
+	Dim tFile, FSO
+
+	If IsfileExists(ScriptFileName) Then
+
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set tFile = FSO.OPenTextFile(ScriptFileName, 1)
+		ReadScriptFromFile = tFile.ReadAll
+		tFile.Close
+	Else
+		ReadScriptFromFile = ""
+	End If
+End Function
+'---
+'
+'---
+Sub AddItem(xml, xmlRoot, Code)
+	Dim NewNode, DepsNode, i
+
+	Select Case Code.Type
+		Case  0
+			If Code.HasChildren Then
+				Set NewNode = xml.CreateElement("folder")
+				NewNode.Setattribute "name", Code.name
+				AddLevel xml, NewNode, Code
+				xmlRoot.AppendChild NewNode
+			End If
+
+		Case 1			' файлы
+			Set NewNode = xml.CreateElement("file")
+			NewNode.Setattribute "name", Code.name
+			NewNode.SetAttribute "filename", Code.FileName
+
+			If Code.FileName = "" Then
+				NewNode.Text = Code.GetScript
+			Else
+				NewNode.Text = ReadScriptFromFile(Code.FileName)
+			End If
+
+		Case 101, 102, 103
+			Set NewNode = xml.CreateElement("code")
+			NewNode.Setattribute "code", Code.Code
+			NewNode.Setattribute "name", Code.name
+			NewNode.Setattribute "type", Code.Type
+			NewNode.Setattribute "db", Code.DbCode
+			NewNode.Setattribute "cr", Code.CrCode
+			NewNode.Setattribute "percent", Code.Percent
+			NewNode.Setattribute "syscode", Code.Syscode
+			NewNode.Setattribute "isservice", Code.IsService
+
+			addDepends xml, NewNode, Code.Depends
+			AddMethods xml, NewNode, Code.Children
+				
+		Case 200
+			Set NewNode = xml.CreateElement("method")
+			NewNode.Setattribute "parent", Code.Parent.Code
+			NewNode.Setattribute "code", Code.Code
+			NewNode.Setattribute "name", Code.name
+			NewNode.Setattribute "methodtype", Code.MethodType
+			NewNode.Setattribute "db", Code.DbCode
+			NewNode.Setattribute "cr", Code.CrCode
+			NewNode.Setattribute "percent", Code.Percent
+			NewNode.Setattribute "mode", Code.mode
+			NewNode.Setattribute "required", Code.Required
+			NewNode.Setattribute "syscode", Code.Syscode
+			NewNode.Text = Code.GetScript
+
+		Case Else
+			Exit Sub
+	End Select
+
+	xmlRoot.AppendChild NewNode
+End Sub
+'---
+'
+'---
+Sub AddMethods(xml, xmlRoot, Methods)
+	Dim i, NewMethods
+
+	Set NewMethods = xml.CreateElement("methods")
+
+	For i = 1 To Methods.Count
+		AddItem xml, NewMethods, Methods.Item(i)
+	Next
+
+	xmlRoot.AppendChild NewMethods
+End Sub
+'---
+'
+'---
+Sub addDepends(xml, DepsNode, CodeDeps)
+	Dim i, DepsNodeRoot, NewNode
+
+	Set DepsNodeRoot = xml.CreateElement("depends")
+
+	For i = 1 To CodeDeps.Count
+		Set NewNode = xml.CreateElement("code")
+		NewNode.SetAttribute "code", CodeDeps.Item(i).Code
+		DepsNodeRoot.AppendChild NewNode
+	Next
+
+	DepsNode.appendChild DepsNodeRoot
+
+End Sub
+'---
+'
+'---

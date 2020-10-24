@@ -1,0 +1,289 @@
+Option Explicit
+'#include "definition.avb"
+
+Dim db, qd, rs
+Dim arrFot(), arrsum
+Dim ig, ug, percent
+Dim i
+Dim pp
+Dim AccDb, AgSum
+Dim IsDepart, IsAgent, IsServ, IsSpec
+
+LoadFlags IsDepart, IsAgent, IsServ, IsSpec
+
+DoFill IsDepart, IsAgent, IsServ, IsSpec
+DoFillFOT
+DoExport (IsDepart Or IsAgent)
+
+'===============================
+'	чтение установок по умолчанию
+Sub LoadFlags(ByRef IsDepart, ByRef IsAgent, ByRef IsServ, ByRef IsSpec)
+	Dim AccExpPrm
+
+	AccExpPrm = Workarea.UserParam("AccExpPrm")
+
+	If Not IsNull(AccExpPrm) Then
+		IsDepart = ((AccExpPrm And 1) <> 0)
+		IsAgent = ((AccExpPrm And 2) <> 0)
+		IsServ = ((AccExpPrm And 4) <> 0)
+		IsSpec = ((AccExpPrm And 8) <> 0)
+	Else
+		IsDepart = False
+		IsAgent = False
+		IsServ = False
+		IsSpec = False
+	End If
+
+End Sub
+
+'===============================
+'	отбор информации
+Sub DoFill(IsDepart, IsAgent, IsServ, IsSpec)
+	Dim r
+
+	ug = 0
+	ig = 0
+	i = 0
+
+	ReDim arrFot(4,1)
+
+	Set db = workArea.DAODataBase
+	Set qd = db.CreateQueryDef("")
+	qd.SQL = "PARAMETERS per Long; " &_
+					"Select P_JOURNAL.MTC_ID, Sum(P_JOURNAL.JP_SUM) AS [Sum-JP_SUM], " &_
+					"iif(P_JOURNAL.JP_DB ='', m.db_code,P_JOURNAL.JP_DB), " &_
+					"iif(P_JOURNAL.JP_CR ='', m.cr_code, P_JOURNAL.JP_CR) "
+
+	If IsDepart Then
+		qd.SQL = qd.SQL & ", P_Journal.ORG_ID "
+	ElseIf IsAgent Then
+		qd.SQL = qd.SQL & ", P_Journal.AG_ID "
+	End If
+
+	qd.SQL = qd.SQL & 	"FROM P_JOURNAL inner Join mtd_codes m On P_JOURNAL.MTC_ID = m.mtd_id " &_
+									"WHERE P_JOURNAL.MTC_ID <> " & workarea.GetCodeID("3220")
+	If IsServ Then
+		qd.SQL = qd.SQL & " And iif(m.mtd_mask Is Null, 0, m.mtd_mask) <> 8"
+	End If
+
+	If IsSpec Then
+		qd.SQL = qd.SQL & " And iif(m.mtd_mode Is Null,0, m.mtd_mode) <> 3"
+	End If
+
+	qd.SQL = qd.SQL & " And P_JOURNAL.JP_DONE = 1 And P_JOURNAL.C_PERIOD=[per] " &_
+								"GROUP BY P_JOURNAL.MTC_ID, P_JOURNAL.C_PERIOD, iif(P_JOURNAL.JP_DB ='', m.db_code,P_JOURNAL.JP_DB), " &_
+								"iif(P_JOURNAL.JP_CR ='', m.cr_code, P_JOURNAL.JP_CR) "
+
+	If IsDepart Then
+		qd.SQL = qd.SQL & ", P_Journal.ORG_ID "
+	ElseIf IsAgent Then
+		qd.SQL = qd.SQL & ", P_Journal.AG_ID "
+	End If
+
+	qd.SQL = qd.SQL & "HAVING Sum(P_JOURNAL.JP_SUM)<>0 ;" 
+	Set pp = WorkArea.Period
+
+	qd.Parameters(0).Value = pp.id
+	Set rs = qd.OpenRecordSet
+
+	If Not rs.eof Then
+		RS.MoveLast
+		r = RS.RecordCount
+		RS.MoveFirst
+		arrsum = rs.GetROWS(r)
+		ReDim arrFot(4,r)	' Preserve убрано, потому что нечего сохранять
+
+		For i = 0 To r-1
+			arrFot(0,i) = arrsum(0,i) ' ид кода начисления/удержания
+			arrFot(1,i) = arrsum(1,i) ' сумма взносов
+			arrFot(2,i) = checknull(arrsum(2,i) , Workarea.Code(arrFot(0,i)).DBCode) ' счет ДТ
+			arrFot(3,i) = checknull(arrsum(3,i) , Workarea.Code(arrFot(0,i)).CRCode) ' счет КТ 
+			arrFot(4,i) = checknull(arrsum(4,i) , 0) ' корреспондент/подразделение
+		Next
+	Else
+		Exit Sub
+	End If	
+
+	ug = r
+End Sub
+'===========
+Sub DoFillFOT
+Dim r
+Dim max, d
+Dim Repcalc
+Dim fond, i, arfonds
+
+	arFonds = Array( "2000", "2001", "2002" )
+	fond = Array(Workarea.GetCodeID(arFonds(0)), Workarea.GetCodeID(arFonds(1)),Workarea.GetCodeID(arFonds(2)))
+
+	Set Repcalc = WorkArea.CreateIntObject("CommonCalc")
+	Repcalc.setPeriod "month", Workarea.Period.Month, Workarea.Period.Year
+	d = Workarea.Period.FirstDay
+	max = Workarea.UTable( USRTBL_LGT ).GetValue( 1, USRTBL_MAXCY, 2 )
+
+	For i = 0 To UBound(fond) 
+
+		Select Case arfonds(i)
+			Case "2000"
+				With WorkArea.Code( fond(i) )
+					percent = .Percent
+				End With
+				CalcDepsSumLimit_Pens fond(i), Repcalc, max, False, d 
+				GoDim
+			Case "2001"
+				With WorkArea.Code( fond(i) )
+					percent = .Percent
+				End With
+				CalcDepsSumLimit_Pens fond(i), Repcalc, max, True, d 
+				GoDim
+			Case "2002"
+				With WorkArea.Code( fond(i) )
+					percent = .Percent
+				End With
+				CalcDepsSumLimitAll fond(i), Repcalc, d, max 
+				GoDim
+
+			End Select
+	Next
+End Sub
+'________________________________________________
+Sub CalcDepsSumLimitAll( CodeID, Repcalc, d, max )
+	Dim i
+	Dim TotalSum
+	Dim GPD
+
+	TotalSum = 0
+	For i = 1 To Repcalc.Count
+		With Repcalc.Agent(i)
+			AgSum = Repcalc.SumBy("CodeSumDependsW", i, CodeID)
+			If AgSum > max Then AgSum = max
+				If Agsum <> 0 Then
+					TotalSum = TotalSum + Round2( AgSum * percent / 100 , 2 )
+			End If
+		End With
+	Next
+		ReDim arrsum(4, 1)
+		arrsum(0,0) = CStr(CodeID)
+		arrsum(1,0) = TotalSum
+		arrsum(2,0) = WorkArea.Code(CodeID).DBCode
+		arrsum(3,0) = WorkArea.Code(CodeID).CrCode
+
+End Sub
+'________________________________________________
+Sub CalcDepsSumLimit_Pens( CodeID, Repcalc, max, IsAgInvalid, d )
+	Dim i
+	Dim TotalSum, TotalGPD
+	Dim Inv, GPD, Accdb, AccCR
+	Dim flAllowDogovor
+	
+	TotalSum = 0
+	TotalGPD = 0
+
+	With Workarea.Code(CodeID)
+		flAllowDogovor = Iif(.Mode = 8 Or .Mode = 9 Or .Mode = 10, True, False ) 'включать ГПД
+	End With
+
+	For i = 1 To Repcalc.Count
+		With Repcalc.Agent(i)
+			Inv = .Prop("Инвалид")
+			Accdb = WorkArea.Code(CodeID).DBCode
+			AccCR = WorkArea.Code(CodeID).CrCode
+			GPD = .Prop(PROP_TRUD, d)
+		If flAllowDogovor Then
+			If Inv = IsAgInvalid Then
+				AgSum = Repcalc.SumBy("CodeSumDependsW", i, CodeID)
+				If AgSum > max Then AgSum = max
+				If Agsum <> 0 Then
+					If Not GPD Then
+						TotalSum = TotalSum + Round2( AgSum * percent / 100 , 2 )
+					Else
+						TotalGPD = TotalGPD + Round2( AgSum * 34.7 / 100 , 2 )
+					End If
+				End If
+			End If
+		Else
+			If (Not GPD) Then
+				If Inv = IsAgInvalid Then
+					AgSum = Repcalc.SumBy("CodeSumDependsW", i, CodeID)
+					If AgSum > max Then AgSum = max
+					If Agsum <> 0 Then
+						TotalSum = TotalSum + Round2( AgSum * percent / 100 , 2 )
+					End If
+				End If
+			End If
+		End If
+	End With
+	Next
+	ReDim arrsum(4, 2)
+	arrsum(0,0) = CStr(CodeID)
+	arrsum(1,0) = TotalSum
+	arrsum(2,0) = Accdb
+	arrsum(3,0) = AccCR
+	arrsum(0,1) = Workarea.GetCodeID("2003") 
+	arrsum(1,1) = TotalGPD
+	arrsum(2,1) = Accdb
+	arrsum(3,1) = AccCR
+
+End Sub
+'--------------
+Sub GoDim 
+	Dim j
+	If arrsum(1,0) = 0 Then Exit Sub
+	ig = ug
+	ug = ug + UBound(arrsum,2)
+	
+	ReDim Preserve arrFot(4,ug)
+	For j = ig To ug
+		arrFot(0,j) = arrsum(0,j-ig) 
+		arrFot(1,j) = arrsum(1,j-ig)
+		arrFot(2,j) = arrsum(2,j-ig)
+		arrFot(3,j) = arrsum(3,j-ig)
+	Next
+	Erase arrsum
+	ReDim arrsum(4,2)
+End Sub
+'--------------
+Sub doExport(IsAgents)
+	Dim i
+	Dim Dom, xml
+	Dim root, trs, atr
+	Dim item
+	Dim name
+	Dim filename
+
+	filename = "c:\payroll_data.xml"
+
+	Set Dom = CreateObject("msxml.domdocument")
+	Set xml = Dom.createProcessingInstruction("xml","version='1.0' encoding='windows-1251'")
+	Dom.insertBefore xml, Null
+
+	Set root = Dom.CreateElement("package")
+	With root
+		.setAttribute "timestamp", Now()
+		.setAttribute "source-application", "payroll7" 
+		.setAttribute "app-version", App.Version
+	End With
+	Set trs = Dom.CreateElement("transactions")
+	For i = 0 To UBound(arrFot,2)-1
+		Set item = Dom.CreateElement("transaction")
+		item.setAttribute "no", i + 1
+
+		Set atr = Dom.CreateElement("db")
+		atr.setAttribute "code", arrFot(2,i)
+		item.AppendChild atr
+
+		Set atr = Dom.CreateElement("cr")
+		atr.setAttribute "code", arrFot(3,i)
+		item.AppendChild atr
+
+		Set atr = Dom.CreateElement("value")
+		atr.setAttribute "sum", arrFot(1,i)
+		item.AppendChild atr	
+
+		trs.AppendChild item
+	Next
+	root.AppendChild trs
+	Dom.InsertBefore Root, Null
+	Dom.Save filename 
+	If UBound(arrFot,2) > 0 Then MsgBox "Экспорт в файл '" & filename&"' прошёл успешно"
+End Sub

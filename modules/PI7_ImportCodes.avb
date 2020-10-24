@@ -1,0 +1,368 @@
+Option Explicit
+'#include "ST74_XML.avb"
+
+Const MSG_BOX_CAPTION = "Импорт кодов/методов"
+'---
+'
+'---
+Sub Main(prm)
+	Dim updater, msgbar
+	Dim oXML, xmlRoot, xmlChild
+	Dim FileName, i, xmlPayrollRoot
+
+	Set updater = prm(0)
+	Set msgbar = prm(1)
+
+	Set oXML = New xml
+
+	If oXML.Create() Then
+		oXML.xmlFileName = "payroll_codes.xml"
+
+		If oXML.Load() Then
+			ImportData oXML.xml.ChildNodes.Item(0).ChildNodes, updater, msgbar
+		Else
+			updater.writelog oXML.ErrorMsg
+			updater.fail = True
+			msgbar.write oXML.ErrorMsg
+		End If
+	Else
+		updater.writelog oXML.ErrorMsg
+		updater.fail = True
+		msgbar.write oXML.ErrorMsg
+	End If
+End Sub
+'---
+'
+'---
+Sub ImportData(xml, updater, msgbar)
+	Dim i, n, Folder, Code, HoldDeps, ItemNode
+
+	Set HoldDeps = CreateObject("Scripting.Dictionary")
+	Set Folder = Workarea.Codes
+	Set Code = Nothing
+	n = xml.length - 1
+
+	For i = 0 To n
+		Set ItemNode = xml.item(i)
+
+		Select Case ItemNode.nodename
+			Case "codes"
+				ImportCodes ItemNode.ChildNodes, Folder, Code, HoldDeps, updater, msgbar
+				If HoldDeps.Count <> 0 Then AddHoldDeps HoldDeps, updater, msgbar
+		End Select
+	Next
+
+End Sub
+'---
+'
+'---
+Function FindFileInFolder(Folder, mName, mFile)
+	Dim i
+
+	For i = 1 To Folder.Count
+		If UCase(Folder.Item(i).Name) = mName Then
+			Set mFile = Folder.Item(i)
+			FindFileInFolder = True
+			Exit Function
+		End If
+	Next
+
+	FindFileInFolder = False
+	Set mFile = Nothing
+
+End Function
+'---
+'
+'---
+Sub AddFile(Folder, ItemNode, updater, msgbar)
+	Dim i, mFileName, mName, mFile, mFilePath
+	Dim FSO, RD, mTextFile
+
+	mFileName = ItemNode.GetAttribute("filename")
+	mName = ItemNode.GetAttribute("name")
+
+	If Not FindFileInFolder(Folder, UCase(mName), mFile) Then
+		Set mFile = Folder.Create(1, "", mName)
+		updater.writelog "Добавлен глобальный модуль " & mName
+		msgbar.write "Добавлен глобальный модуль " & mName
+	End If
+
+	If mFileName = "" Then
+		mFile.SetScript ItemNode.Text
+	Else
+		mFile.FileName = mFileName
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set RD = CreateLibObject("Redirect")
+
+		mFilePath = RD.GetFullPath(mFileName)
+	
+		If mFilePath = "" Then
+			mFilePath = RD.GetPathArray("*.avb")(0)
+		
+			If mFilePath = "" Then
+				updater.writelog "Ошибка! Невозможно создать фал модуля. Не указан путь к файлам *.avb"
+				updater.fail = True
+
+				msgbar.write "Ошибка! Невозможно создать фал модуля. Не указан путь к файлам *.avb", vbCritical 
+				Exit Sub
+			End If
+
+			If Right(FilePath, 1) <> "\" Then FilePath = FilePath & "\"
+			FilePath = FilePath & mFileName
+		End If
+
+		Set mTextFile = FSO.OpenTextFile(mFilePath, 2, True)
+		mTextFile.Write ItemNode.Text
+		mTextFile.Close
+	End If
+
+	mFile.Save
+
+End Sub
+'---
+'
+'---
+Sub ImportCodes(ItemNodes, Folder, Code, HoldDeps, updater, msgbar)
+	Dim i, n, Name, NewItem, NewItemID, NewItemType
+	Dim ItemCode
+
+	n = ItemNodes.Length - 1
+
+	For i = 0 To n
+		With ItemNodes.Item(i)
+			Name = .GetAttribute("name")
+
+			Select Case .NodeName
+				Case "file"
+					AddFile Folder, ItemNodes.Item(i), updater, msgbar
+
+				Case "folder"
+					NewItemID = FolderFind(Folder, UCase(Name))
+
+					If NewItemID = 0 Then
+						Set NewItem = Folder.Create(0, "", Name)
+						updater.refresh
+						msgbar.write "Начисления/удержания: добавлена папка " & Name, vbInformation
+						updater.writelog "Начисления/удержания: добавлена папка " & Name
+					Else
+						Set NewItem = workarea.Code(NewItemID)
+					End If
+		
+					ImportCodes .ChildNodes, NewItem.Children, Code, HoldDeps, updater, msgbar
+
+				Case "code"
+					ItemCode = .GetAttribute("code")
+					NewItemID = workarea.getcodeid(ItemCode)
+					NewItemType = .GetAttribute("type")
+
+					If NewItemID = 0 Then
+						Set Code = Folder.Create(CLng(NewItemType), ItemCode, Name)
+						updater.refresh
+						msgbar.write "Начисления/удержания: добавлен код " & ItemCode & " " & Name, vbInformation
+						updater.writelog "Начисления/удержания: добавлен код " & ItemCode & " " & Name
+					Else
+						Set Code = workarea.Code(NewItemID)
+					End If
+
+					SetCodeProps Code, ItemNodes.Item(i), HoldDeps, updater, msgbar
+
+			End Select
+		End With
+	Next
+	
+End Sub
+'---
+'
+'---
+Function Str2Dbl(cNum)
+	Str2Dbl = 0
+	cNum = Replace(cnum, ",", ".")
+
+	If Not IsNumeric(cNum) Then
+		cNum = Replace(cnum, ".", ",")
+
+		If IsNumeric(cNum) Then
+			Str2Dbl = CDbl(cNum)
+		End If
+	Else
+		Str2Dbl = CDbl(cNum)
+	End If
+End Function
+'---
+'
+'---
+Sub AddHoldDeps(HoldDeps, updater, msgbar)
+	Dim Keys, i, j, HoldDepsCode
+	Dim Code, CodeID, KeysDeps, DepsCode
+
+	Keys = HoldDeps.Keys
+	Set msgbar = msg
+	
+	For i = 0 To UBound(keys)
+		Set HoldDepsCode = HoldDeps.Item(keys(i))
+		Set Code = keys(i)
+		KeysDeps = HoldDepsCode.keys
+
+		For j = 0 To UBound(KeysDeps)
+			DepsCode = HoldDepsCode(KeysDeps(j))
+			CodeID = workarea.getcodeid(DepsCode)
+			Code.AddDependency CodeID
+			msgbar.write "Начисления/удержания: добавлена зависимость для кода " & Code.Code & " от кода " & DepsCode, vbInformation
+			updater.writelog "Начисления/удержания: добавлена зависимость для кода " & Code.Code & " от кода " & DepsCode
+		Next
+
+	Next
+
+End Sub
+'---
+'
+'---
+Sub SetCodeProps(Code, xmlCode, HoldDeps, updater, msgbar)
+	Dim i, Item, n, HoldDepsCode
+
+	Code.DbCode = xmlCode.GetAttribute("db")
+	Code.CrCode = xmlCode.GetAttribute("cr")
+	Code.SetSysCode xmlCode.GetAttribute("syscode")	
+	Code.IsService = xmlCode.GetAttribute("isservice")	
+	Code.Percent = Str2Dbl(xmlCode.GetAttribute("percent"))
+
+	Code.Save	
+
+	With xmlCode.ChildNodes
+		n = .Length - 1	
+
+		For i = 0 To n 
+			Set Item = .Item(i)
+			Select Case Item.NodeName
+				Case "depends"
+					Set HoldDepsCode = AddDepends(Code, Item.ChildNodes, updater, msgbar)
+
+					If HoldDepsCode.Count > 0 Then
+						HoldDeps.Add Code, HoldDepsCode
+					End If
+
+				Case "methods"
+					AddMethods Code, Item.ChildNodes, updater, msgbar
+			End Select
+		Next
+	End With
+	
+End Sub
+'---
+'
+'---
+Function AddDepends(Code, xmlItems, updater, msgbar)
+	Dim i, n, ItemCode, ItemCodeID, HoldDepends
+
+	Set HoldDepends = CreateObject("Scripting.Dictionary")
+
+	n = xmlItems.Length - 1	
+
+	For i = 0 To n
+		With xmlItems.Item(i)
+			ItemCode = .GetAttribute("code")
+
+			ItemCodeID = workarea.getcodeid(ItemCode)
+
+			If ItemCodeID <> 0 Then 
+				If Not FindCodeInDepends(Code.Depends, UCase(ItemCode)) Then
+					Code.AddDependency ItemCodeID
+					msgbar.write "Начисления/удержания: добавлена зависимость для кода " & Code.Code & " от кода " & ItemCode, vbInformation
+					updater.writelog "Начисления/удержания: добавлена зависимость для кода " & Code.Code & " от кода " & ItemCode
+				End If
+			Else
+				HoldDepends.Add HoldDepends.Count + 1, ItemCode
+			End If
+		End With
+	Next
+
+	Set AddDepends = HoldDepends
+
+End Function
+'---
+'
+'---
+Function FindCodeInDepends(Codes, code)
+	Dim i
+
+	For i = 1 To Codes.Count
+		With Codes.Item(i)
+			If UCase(.Code) = code Then
+				FindCodeInDepends = True
+				Exit Function
+			End If
+		End With
+	Next
+
+	FindCodeInDepends = False
+End Function
+'---
+'
+'---
+Sub AddMethods(Code, xmlItems, updater, msgbar)
+	Dim i, n, Method, MethodID
+	Dim mName, CodeRoot, CodeRootID
+
+	n = xmlItems.Length - 1	
+
+	For i = 0 To n
+		With xmlItems.Item(i)
+			If Code Is Nothing Then 
+				CodeRootID = Workarea.GetCodeID(.GetAttribute("parent"))
+				Set CodeRoot = workarea.code(CodeRootID).Cilderen
+			Else
+				Set CodeRoot = Code
+			End If
+
+			Method = .GetAttribute("code")
+			mName =  .GetAttribute("name")
+
+			MethodID = Workarea.GetCodeID(Method)
+	
+			If MethodID = 0 Then
+				Set Method = Code.Children.Create(200, Method, mName)
+				updater.refresh
+				msgbar.write "Начисления/удержания: добавлен метод " & Method.Code & " " & Method.Name, vbInformation
+				updater.writelog "Начисления/удержания: добавлен метод " & Method.Code & " " & Method.Name
+			Else
+				Set Method = workarea.code(MethodID)
+			End If
+
+			Method.SetSysCode .GetAttribute("syscode")
+			Method.percent = Str2Dbl(.GetAttribute("percent"))
+			Method.DbCode = .GetAttribute("db")
+			Method.CrCode = .GetAttribute("cr")
+			Method.required = .GetAttribute("required")
+			Method.mode = .GetAttribute("mode")
+			Method.methodtype = .GetAttribute("methodtype")
+			Method.SetScript .Text
+
+			Method.Save
+			
+		End With
+	Next
+End Sub
+'---
+'
+'---
+Function FolderFind(Folder, Name)
+	Dim i, n
+
+	n = Folder.Count
+
+	For i = 1 To n
+		With Folder.Item(i)
+			If UCase(.Name) = Name Then
+				FolderFind = .ID
+				Exit Function
+			End If
+		End With
+	Next
+
+	FolderFind = 0
+
+End Function
+'---
+'
+'---
+

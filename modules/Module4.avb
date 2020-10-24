@@ -1,0 +1,3 @@
+Option Explicit
+
+WorkArea.Code(workarea.getcodeid("2401")).SetScriptFromFile "мдтк.mtd"

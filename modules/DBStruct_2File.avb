@@ -1,0 +1,68 @@
+Option Explicit
+' Записать данные о структуре БД в файл
+
+Const dbSystemObject = -2147483646
+Const dbAutoIncrField = 16
+DBStructWrite "C:\DBStructEtalon.avb"
+
+'________________________________________________
+Sub DBStructWrite( fName )
+	With CreateObject( "Scripting.FileSystemObject" ).CreateTextFile( fName, True, 0 )
+		.Write "Sub XXX( ByRef EtalonVersion, ByRef arTbl, ByRef arRel, ByRef arPrimary, ByRef arCounters )" & vbNewLine & WriteTables() & vbNewLine & WriteRelations() & vbNewLine & "End Sub" & vbNewLine
+		.Close
+	End With
+	MsgBox "Структура БД сохранена в файле " & fName, vbInformation
+End Sub
+
+'________________________________________________
+' Function WriteTables
+' вернуть массив со всеми таблицами БД
+'________________________________________________
+Function WriteTables
+	Dim i, j, s, e, ar1(), k, pk, cnt
+	With Workarea.DAODatabase.TableDefs
+		ReDim ar1( .Count - 1 )
+		For i = 0 To .Count - 1
+			' системные таблицы - забота движка MS Jet
+			If ( .Item( i ).Attributes And dbSystemObject ) = 0 Then
+				ar1( k ) = """" & .Item( i ).Name & """"
+				k = k + 1
+				' собираем поля - "первичные ключи"
+				For Each e In .Item( i ).Indexes
+					If e.Primary Then
+						For j = 0 To e.Fields.Count - 1
+							pk = pk & """" & .Item( i ).Name & """, """ & e.Fields( j ).Name & """, "
+						Next
+					End If
+				Next 
+				For Each e In .Item( i ).Fields
+					If ( e.Attributes And dbAutoIncrField ) <> 0 Then
+						cnt = cnt & """" & .Item( i ).Name & """, """ & e.Name & """, "
+					End If
+				Next
+			End If
+		Next
+	End With
+	ReDim Preserve ar1( k - 1 )
+	s = vbTab & "arTbl = Array( " & Join( ar1, ", " ) & " )"
+	If Len( pk ) <> 0 Then s = s & vbNewLine & vbTab & "arPrimary = Array( " & Left( pk, Len( pk ) - 2 ) & " )"
+	If Len( cnt ) <> 0 Then s = s & vbNewLine & vbTab & "arCounters = Array( " & Left( cnt, Len( cnt ) - 2 ) & " )"
+	WriteTables = s
+End Function
+
+'________________________________________________
+' Function WriteRelations
+' вернуть массив со всеми связями между таблицами БД
+'________________________________________________
+Function WriteRelations
+	Dim i, ar1()
+	With Workarea.DAODatabase.Relations
+		ReDim ar1( .Count - 1 )
+		For i = 0 To .Count - 1
+			ar1( i ) = """" & .Item( i ).Name & """, """ & _
+					.Item( i ).Table & """, """ & .Item( i ).ForeignTable & """, """ & _
+					.Item( i ).Fields( 0 ).Name & """, """ & .Item( i ).Fields( 0 ).ForeignName & """, " & .Item( i ).Attributes
+		Next
+	End With
+	WriteRelations = vbTab & "arRel = Array( " & Join( ar1, ", _" & vbNewLine & vbTab & vbTab ) & " )"
+End Function

@@ -1,0 +1,82 @@
+'-----
+'
+'-----
+Option Explicit
+
+Dim RD, Sys
+Dim aBackUp, Done
+
+Dim msg_error
+
+msg_error = "Для создания копии файла необходимо указать " & vbCrLf & "путь для *.backup в меню Сервис|Расположение файлов"
+
+'-----
+'
+'-----
+Function GetShortName(fName)
+	GetShortName = Right(fName, Len(fName) - InStrRev(fName, "\"))
+End Function
+'-----
+'
+'-----
+
+Set RD = CreateLibObject("Redirect")
+Set Sys = CreateLibObject("System")
+aBackUp = RD.GetPathArray("*.backup")
+
+If UBound(aBackUp) <> -1 Then
+	If App.AppType = "DAO" Then
+		Done = backup_DAO(aBackUp(0))
+	Else
+		Done = backup_ADO(aBackUp(0))
+	End If
+	
+	If Done Then
+		Workarea.userparam("LastBackup") = Now
+		MsgBox "Резервная копия базы данных успешно сохранена", vbInformation, "Резервное копирование"
+	Else
+		MsgBox "Ошибка при создании резервной копии !", vbCritical, "Внимание !"
+	End If
+Else
+	MsgBox msg_error, vbCritical, "Внимание !"		
+End If
+
+'-----
+'
+'-----
+Function Backup_DAO(Path)
+	Dim dbFileName
+	Dim Done
+	Dim BackUpFileName
+
+	dbFileName = WorkArea.DAOdataBase.name
+	BackUpFileName = Path & "\" & GetShortName(dbFileName) & "-" & Formatdate2(Now, "yyyy_mm_dd_hh_nn_ss") & ".backup"
+	Backup_DAO = Sys.Copyfile(dbFileName, BackUpFileName, True)
+End Function
+'-----
+'
+'-----
+Function backup_ADO(Path)
+	Dim dbFileName
+	Dim cn, Rs, SQL
+
+	Set Cn = Workarea.ADOConnection
+	Set Rs = Cn.Execute("select db_name()")
+
+	dbFileName = Trim(rs.Fields(0).Value)
+
+	SQL = "BACKUP DATABASE [%DBName] To  DISK = N'%Name' WITH NOFORMAT, NOINIT,  NAME = N'%DBName-Полная База данных Резервное копирование', SKIP, NOREWIND, NOUNLOAD,  STATS = 10"
+	SQL = Replace(SQL, "%DBName", dbFileName)
+	SQL = Replace(SQL, "%Name", Path & "\" & dbFileName & ".bak")
+
+	On Error Resume Next
+
+	Set Rs = Cn.Execute(SQL)
+
+	backup_ADO = (Err.Number = 0)
+
+End Function
+'-----
+'
+'-----
+

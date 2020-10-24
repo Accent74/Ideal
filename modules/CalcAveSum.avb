@@ -1,0 +1,112 @@
+Option Explicit
+
+Const USRTBL_MAXCY				= "Максимальный доход"
+Const PROP_GRAPH_TAG			= "График"
+
+'-------
+'
+'-------
+Sub SetupAgPerid(Ag, onDate, ByRef dStart, ByRef dEnd)
+	Dim DiffDate
+
+	DiffDate = DateDiff("m", Ag.DateIn, OnDate)
+
+	If DiffDate > 6 Then
+		dStart = CDate("01/" & Month(DateAdd("m", -6, OnDate)) & "/" & Year(DateAdd("m", -6, OnDate)))
+		dEnd = CDate("31/" & Month(DateAdd("m", -1, OnDate)) & "/" & Year(DateAdd("m", -1, OnDate)))
+	ElseIf DiffDate = 0 Then
+		dStart = CDate("01/" & CStr(Month(OnDate)) & "/" & CStr(Year(OnDate)))
+		dEnd = dStart
+	Else
+		dStart = CDate("01/" & CStr(Month(DateAdd("m", Ag.DateIn, 1))) & "/" & CStr(Year(DateAdd("m", Ag.DateIn, 1))))
+		dEnd = OnDate
+	End If
+End Sub
+'-------
+'
+'-------
+Function CalcAveSum(Ag, OnDate, pName)
+	Dim nDays, nDaysGraph
+	Dim dStart, dEnd
+	Dim Tm
+	Dim SumIsIll, DaysIsIll
+	Dim SumHolyday, DaysHolyday
+	Dim SumPresent, DaysPresent
+	Dim TotalSum, TotalDays
+	Dim AveSum
+	Dim bLookup 
+	Dim MAX_FOUND_CY
+	
+	MAX_FOUND_CY = WorkArea.UTable(workarea.GetSysUTableID("ПДТ")).GetValue(1, USRTBL_MAXCY,2)
+
+	Set bLookup = WorkArea.CreateIntObject("BackLookup")
+	SetupAgPerid Ag, onDate, dStart, dEnd
+	AveSum = 0
+	nDays = 0
+	Set Tm = WorkArea.TimeTable(Ag.Prop(PROP_GRAPH_TAG))
+
+	While dStart <= dEnd
+
+		' общее количество рабочих дней
+		If pName = "Days" Then
+			nDaysGraph = Tm.Days(CDate(dStart))
+		Else
+			nDaysGraph = Tm.Hours(CDate(dStart))
+		End If
+
+		bLookup.setPeriod Month(dStart), Year(dStart), True
+		bLookup.AgID = Ag.ID
+
+		' болел ли в текущем месяце ?
+		CalcSumByCode bLookup, "0025", dStart, SumIsIll, DaysIsIll, pName
+		' отпускные
+		CalcSumByCode bLookup, "0026", dStart, SumHolyday, DaysHolyday, pName
+		' выплаты разового характера
+		CalcSumByCode bLookup, "0024", dStart, SumPresent, DaysPresent, pName
+		' начислено
+		CalcSumByCode bLookup, "0027", dStart, TotalSum, TotalDays, pName
+		' считаем сред. сумму для разовых выплат
+
+		If SumIsIll <> 0 And (TotalSum <> 0 Or SumHolyday <> 0) Then
+			If nDaysGraph <> 0 Then
+				SumPresent = SumPresent / nDaysGraph * (TotalDays + DaysHolyday)
+			Else
+				SumPresent = 0
+			End If
+		ElseIf SumIsIll <> 0 Then
+			SumPresent = 0
+		End If
+
+		If (TotalSum + SumPresent) > MAX_FOUND_CY Then
+			AveSum = AveSum + MAX_FOUND_CY
+		Else
+			If TotalDays > 0 Then
+				AveSum = AveSum + TotalSum + SumPresent
+			ElseIf SumHolyday <> 0 Then
+				AveSum = AveSum + SumPresent
+			End If
+		End If
+
+		nDays = nDays + TotalDays
+
+		dStart = DateAdd("m", 1, dStart)
+
+	Wend
+
+	CalcAveSum = AveSum / nDays
+End Function
+'-------
+'
+'-------
+Sub CalcSumByCode(bLookup, Code, dStart, ByRef CalcSum, ByRef CalcDays, pName)
+	bLookup.CodeID = WorkArea.GetCodeID(Code)
+
+	bLookup.Build("Deep")
+	CalcSum = bLookup.Value("Total", Month(dStart), Year(dStart))
+	CalcDays = bLookup.Value(pName, Month(dStart), Year(dStart)) 
+End Sub
+'-------
+'
+'-------
+stop
+MsgBox CalcAveSum(workarea.agent(1809), CDate("01/08/2006"), "Days")

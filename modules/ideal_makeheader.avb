@@ -1,0 +1,47 @@
+Option Explicit
+
+Sub MakeHeader2(sh, CurrY, CurrX, hdr)
+	Dim MaxY, aData, i, Y
+	Dim PosX
+
+	aData = Split(hdr, "|")
+	MaxY = GetMaxY(aData)
+
+	PosX = 1
+
+	For i = 0 To UBound(aData)
+		Y = CLng(Token(adata(i), 1, ":")) 
+		If y > CurrY Then
+			PosX = CurrX
+			CurrY = CurrY + 1
+		ElseIf y = CurrY Then
+			Sh.Range(PosX, CurrY, CurrX, MaxY - CurrY + 1).mergecells True
+			CurrX = CurrX + 1
+		Else
+			CurrY = CurrY - 1
+			Sh.Range(PosX, CurrY, CurrX, CurrY).mergecells True
+			CurrX = CurrX + 1
+			PosX = CurrX
+		End If
+	
+		Sh.Cell(CurrY, CurrX).Value = Token(adata(i), 2, ":")
+		
+	Next
+End Sub
+
+Function GetMaxY(aData)
+	Dim i, Max, n
+
+	Max = 0
+
+	For i = 0 To UBound(aData)
+		n = CLng(Token(adata(i), 1, ":")) 
+
+		If n > Max Then
+			Max = n
+		End If
+	Next
+	
+	GetMaxY = Max
+
+End Function

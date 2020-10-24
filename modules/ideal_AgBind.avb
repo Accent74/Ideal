@@ -1,0 +1,320 @@
+Option Explicit
+
+'Private AgName, AgID, frmSelector
+'Public FolderID, AgType
+'Public leftBorder
+'Public RightBorder
+'public NameMask
+
+'Public Property Set 	Selector(frmSel)								устанавливает селектор для работы объекта
+'Public Property Get 	Name													возвращает имя корреспондента
+'Public Property Let 	Name(NameValue)								осуществляет поиск корреспондента по имени. Поиск типа like имя%
+'Public Property Get 	ID														возвращает имя корреспондента
+'Public Property Let 	ID(IdValue)										поиск корреспондента по его ID
+'public property Get	SignName
+'public property Get	Position
+'public sub					SetStdSignValues
+
+'Private Sub 				Clear												очищает значения внутренних переменных и селектора
+'Public Sub 				OnClick()											обработка нажатия на кнопку выбора корреспондента
+'Private Sub 				BrowseFoundAg(Elems, AgType)			отображение диалога для выбора корреспондентов, если поиск нашел их несколько
+'	123 = ФИО
+
+Class AgBind
+	Private AgName, AgID, frmSelector
+	Public FolderID, AgType
+	Public leftBorder, RightBorder
+	Public prmFullName, fctFullName, fctDate
+	Public NameMask
+	Private AgAddress, IsAddressModified, AgPassport
+	 
+	Private Sub Class_initialize
+		IsAddressModified = False
+		AgAddress = ""
+		prmFullName = ""
+		fctFullName = ""
+		fctDate = Date
+		AgName = ""
+		AgID = 0
+		AgPassport = ""
+		Set frmSelector = Nothing
+		FolderID = Empty
+		AgType = Empty
+		Clear
+
+		NameMask = "123"
+		LeftBorder = "/"
+		RightBorder = "/"
+
+	End Sub
+
+	Private Sub Class_terminate
+	End Sub
+
+	Public Property Get Facts(fctName, OnDate, DefValue)
+		Dim AgFacts
+
+		Facts = DefValue
+
+		If AgID <> 0 Then 
+			Set AgFacts = Workarea.Agent(AgID).Facts(OnDate)
+
+			If AgFacts.Exists(fctName) Then
+				Facts = AgFacts.Item(fctName).Value2
+			End If
+		End If
+
+	End Property
+
+	Public Sub SetStdSignValues
+		NameMask = "123"
+		LeftBorder = "/"
+		RightBorder = "/"
+	End Sub
+
+	Public Property Set Selector(frmSel)
+		Set frmSelector = frmSel
+		frmSelector.disablebindclick True
+		frmSelector.text = ""
+	End Property
+
+	Public Property Get Position
+		Dim Ag, PositionID
+
+		Position = ""
+
+		If AgID <> 0 Then
+			Set Ag = Workarea.Agent(AgID)	
+
+			If Not Ag Is Nothing Then
+				Position = Ag.Prop("Должность")
+			End If
+		End If
+	End Property
+
+	Public Property Get Name
+		Name = AgName
+	End Property
+
+	Public Property Get FullName
+		FullName = GetName()
+	End Property
+
+	Public Property Get ID
+		ID = AgID
+	End Property
+
+	Public Property Get Passport
+		Passport = AgPassport
+	End Property
+
+	Public Property Let ID(IdValue)
+		Dim Ag
+
+		Clear
+
+		If IdValue <> 0 Then
+			Set Ag = Workarea.Agent(IDValue)
+
+			If Not Ag Is Nothing Then
+				AgID = Ag.ID
+					
+				If prmFullName <> "" Then
+					AgName = Ag.Params(prmFullName).Value2
+				ElseIf  fctFullName <> "" Then
+					AgName = Ag.Facts(fctDate).Item(fctFullName).Value2
+				Else
+					AgNAme = Ag.Name
+				End If
+
+				AgAddress = Ag.Address
+				AgPassport = Ag.Passport
+				IsAddressModified = False
+			End If
+		End If
+	End Property
+
+	Public Property Get AlterNameFullAddress
+
+		If Not IsAddressModified Then 
+			AgAddress = Trim(Me.AlterName & " " & Me.FullAddress)
+		End If
+
+		AlterNameFullAddress = AgAddress
+	End Property
+
+	Public Property Let AlterNameFullAddress(AddressValue)
+		IsAddressModified = True
+		SetName AddressValue
+
+		If IsAddressModified Then 
+			AgAddress = AddressValue
+		End If 
+	End Property
+
+	Public Property Get FullAddress
+		Dim Country, NewAddress, Ag
+
+		NewAddress = ""
+
+		If AgID <> 0 Then
+			Set Ag = Workarea.Agent(AgID)
+
+			If Not Ag Is Nothing Then
+				NewAddress = Ag.country
+				If NewAddress <> "" Then NewAddress = NewAddress & ", "
+				NewAddress = NewAddress & Trim(Replace(Ag.Address, ";", ", "))
+			End If
+		End If
+
+		If NewAddress = "" Then 
+			If Not IsAddressModified And AgNAme <> "" Then AgAddress = Mid(AgAddress, Len(AgNAme) + 1)
+			FullAddress = AgAddress
+		Else
+			FullAddress = NewAddress
+		End If
+	End Property
+
+	Public Property Let SignName(NameValue)
+		SetName NameValue
+	End Property
+
+	Public Property Get SignName
+		SignName = GetName()
+	End Property
+
+	Private Function GetName()
+		Dim i, n, NewName, ShortName, Pos, AgNameFirst, ag
+
+		NewName = ""
+		AgNameFirst = ""
+
+		If AgID <> 0 Then
+			Set Ag = Workarea.Agent(AgID)
+			If Not Ag Is Nothing Then 
+				AgNameFirst = Ag.Name
+			End If
+		End If
+
+		If AgNAmeFirst = "" Then AgNameFirst = AgName
+
+		If NameMask <> "" And AgNameFirst <> "" Then
+			n = Iif(Len(NameMask) > 3, 3, Len(NameMask))
+
+			For i = 1 To n
+				Pos = CLng(CharAt(NameMask, i))
+
+				Select Case Pos
+					Case 1
+						ShortName = Ag.Prop("Фамилия")
+					Case 2
+						ShortName = Ag.Prop("Имя")
+					Case 3
+						ShortName = Ag.Prop("Отчество")
+				End Select
+
+				If Pos <> 1 And ShortName <> "" Then ShortName = Left(ShortName, 1) & "."
+				NewName	 = Trim(NewName & " " & ShortName)
+			Next
+		Else
+			NewName = Trim(AgNameFirst)
+		End If
+
+		If NewName <> "" Then
+			GetName = LeftBorder & Replace(Replace(Trim(NewName), LeftBorder, ""), RightBorder, "") & RightBorder
+		Else
+			GetName = NewName
+		End If
+	End Function
+
+	Public Property Let Name(NameValue)
+		SetName NameValue
+	End Property
+
+	Public Property Let FullName(NameValue)
+		SetName NameValue
+	End Property
+
+	Private Sub SetName(NameValue)
+		Dim elFind
+
+		NameValue = Replace(Replace(NameValue, LeftBorder, ""), RightBorder, "")
+
+		If NameValue = "" Then 
+			Clear
+		Else
+			Set elFind = workarea.ElementFinder(acAgent)
+			elFind.AddCriteria "Name", "Like*", NameValue
+			
+			If elFind.Find Then
+				If elFind.Elems.Count > 1 Then
+					BrowseFoundAg elFind.Elems, Empty
+				Else
+					With elFind.Elems.Item(1)
+						AgID = .ID
+						AgName = .Name
+						AgAddress = .Address
+						IsAddressModified = False
+					End With
+				End If
+			Else
+				AgID = 0
+				AgName = NameValue
+			End If
+		End If
+	End Sub
+
+	Private Sub Clear
+		AgID = 0
+		AgName = ""
+		AgAddress = ""
+		IsAddressModified = False
+	End Sub
+
+	Public Sub OnClick()
+		Dim NewAgID, Flags
+
+		Flags = 0
+		If Not IsEmpty(FolderID) And FolderID <> 0 Then Flags = Flags + 1
+
+		NewAgID = Workarea.Browse(acAgent, AgID, FolderID, Flags, "Выберите корреспондента")
+
+		If NewAgID <> 0 Then
+			AgID = NewAgID
+
+			With Workarea.Agent(AgID)
+				AgName = .Name
+				AgAddress = .Address
+				AgPassport = .Passport
+				IsAddressModified = False
+			End With 
+
+		End If 
+	End Sub
+
+	Private Sub BrowseFoundAg(Elems, AgType)
+		Dim Dlg
+
+		Set Dlg = App.CreateDialog("ST74_ElementFinderList.adg")
+
+		With Dlg.Map
+			Set .Item("Elems") = Elems
+			.Item("kind") = acAgent
+			.item("type") = AgType
+			
+			If Dlg.DoModal = vbOK Then
+				AgID = Dlg.Map("id")
+
+				With Workarea.Agent(AgID)
+					AgName = .Name
+					AgAddress = .Address
+					AgPassport = .Passport
+					IsAddressModified = False
+				End With 
+
+			End If
+		End With
+	End Sub
+
+End Class
+

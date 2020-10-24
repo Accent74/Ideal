@@ -1,0 +1,185 @@
+Option Explicit
+
+Const USER_NAME = "admin"
+Const USER_PWD = ""
+
+Dim Accent
+'----
+'
+'----
+Function GetAgData(AccDBCode, AccCRCode, OrgTag)
+	Dim WR
+	Dim Ag
+	Dim AccID
+
+	Set Ag = CreateObject("Scripting.Dictionary")
+
+	If OpenDB(Accent) Then
+		Set WR = Accent.CreateReport("RepWizard")
+
+		With WR.Period
+			.Start = WorkArea.Period.FirstDay
+			.End = WorkArea.Period.LastDay
+		End With
+
+		AccID = Accent.GetAccID(AccDBCode)
+		RepWizardSetup WR, OrgTag, AccID, AccCRCode
+
+		If WR.Build Then LoadAgDataToDictionary WR.Root, Ag
+
+	Else
+		WorkArea.UserParam("AccentDB") = Null
+	End If
+
+	Set GetAgData = Ag
+End Function
+'----
+'
+'----
+Sub LoadAgDataToDictionary(WRRoot, Ag)
+	Dim i, j
+	Dim Worker
+	Dim TotalSum, TotalQty
+	Dim AgID
+	Dim Mt
+
+	Set Mt = Meter
+
+	With WRRoot
+		If .Children > 0 Then
+			Mt.Open "Заполнение ...", 1, .Children
+				
+			For i = 1 To .Children
+				Mt.Pos = i
+				AgID = 	.Child(i).Value
+
+				If AgID <> 0 Then
+					Set Worker = Accent.Agent(AgID)
+					TotalSum = 0
+					TotalQty = 0
+						
+					With .Child(i)
+						For j = 1 To .Children
+							TotalSum = TotalSum + .TurnDb
+							TotalQty = TotalQty + .QtyDb
+						Next
+					End With
+
+					Ag.Add Worker.TabNo, Array(TotalQty, TotalSum)
+				End If
+			Next
+		End If
+	End With
+End Sub
+
+'----
+'
+'----
+Sub RepWizardSetup(WR, OrgTag, AccID, AccCRCode)
+	If OrgTag = "" Then
+		WR.Kind = acAccount
+		WR.KindID = AccID
+	Else
+		WR.Kind = acAgent
+		WR.KindID = GetAgIDByTag(OrgTag)
+		WR.Recursive = True
+	End If
+
+	WR.AccID = AccID
+	WR.SubAcc = True
+	WR.SetRemMode False, 0
+	WR.SetRemMode True, 0
+	WR.SetTurnmode False, 1, 1 + 2
+	WR.SetTurnmode True, 0
+'	WR.Restrict AccCRCode,, 1 + 2
+	WR.AddColumn 3
+	WR.AddColumn 5
+End Sub
+
+'----
+'
+'----
+Function GetDBFileName()
+	Dim fDlg
+
+	Set fDlg = CreateLibObject("FileDialog")
+
+	If App.AppType = "DAO" Then
+		fDlg.Filter = "База данных Акцент (*.adb)|*.adb"
+		fDlg.Caption = "Выберите базу данных Акцент 7.0"
+	Else
+		fDlg.Filter = "Подключение к базе данных Акцент (*.udl)|*.udl"
+		fDlg.Caption = "Выберите подключение к базе данных Акцент 7.0"
+	End If
+
+	If fDlg.ShowOpen() = vbOK Then
+		GetDBFileName = fDlg.PathName
+	End If
+End Function
+'----
+'
+'----
+
+Function OpenDB(ByRef Accent)
+	Dim AccentDB
+
+	If WorkArea.Map.Exists("Accent") Then
+		Set Accent = WorkArea.Map.Item("Accent")
+	Else
+		If IsNull(Workarea.UserParam("AccentDB")) Then
+			AccentDB = GetDBFileName()
+			If AccentDB = "" Then
+				OpenDB = False
+				MsgBox "Требуется указать файл базы данных Акцент 7.0", vbCritical, "Акцент заработная плата 7.0"				
+				Exit Function
+			End If
+
+			Workarea.UserParam("AccentDB") = AccentDB 
+		Else
+			AccentDB = Workarea.UserParam("AccentDB")
+		End If
+	
+		If App.AppType = "DAO" Then
+			Set Accent = CreateObject("Accent7.WorkArea")
+		Else
+			Set Accent = CreateObject("Accent7s.WorkArea")
+		End If
+
+		If Not Accent Is Nothing Then
+			Set WorkArea.Map.Item("Accent") = Accent
+		
+			If Not Accent.OpenDataBase2(AccentDB, "uid=" & USER_NAME & ";pwd=" & USER_PWD) Then
+				MsgBox "Ошибка открытия базы данных Акцент 7.0", vbCritical, "Акцент заработная плата 7.0"
+				If WorkArea.Map.Exists("Accent") Then WorkArea.Map.Remove("Accent")
+				OpenDB = False
+				Exit Function
+			End If
+		Else
+			MsgBox "Ошибка создания Акцент 7.0", vbCritical, "Акцент заработная плата 7.0"	
+			OpenDB = False
+			Exit Function
+		End If
+	End If
+
+	OpenDB = Not (Accent Is Nothing)
+
+End Function
+'----
+'
+'----
+Function GetAgIDByTag(OrgTag)
+	Dim EntFinder
+
+	Set EntFinder = Accent.ElementFinder(acAgent)
+	EntFinder.AddCriteria "Tag", "=", OrgTag
+
+	If EntFinder.Find Then
+		GetAgIDByTag = EntFinder.Elems.Item(1).ID
+	Else
+		GetAgIDByTag = 0
+	End If
+
+End Function
+'----
+'
+'----

@@ -1,0 +1,34 @@
+Option Explicit
+
+Dim i, Ag, AgBase, SQL, OnDate
+
+
+Set AgBase = Workarea.Agent(Workarea.Site.ID)
+
+If Not AgBase Is Nothing Then
+
+	OnDate = InputBox("¬ведите дату, за которую нужно копировать данные", " опирование дополнительных начислений",Date())
+
+	With AgBase.Parent.Children
+		For i = 1 To .Count
+			Set Ag = .Item(i)
+
+			If Ag.Type = 3 And Ag.ID <> AgBase.ID Then
+				SQL = "insert into ag_props (prop_id, prop_fdate, PROP_CY, El_id) " & _
+							"Select prop_id, prop_fdate, PROP_CY, " & Ag.ID & _
+							" from ag_props " & _ 
+							"where " & _ 
+							"el_id = " & AgBase.ID & _
+							" And prop_id In ( " & _
+							"Select prop_id " & _
+							"from ag_prop_names " & _
+							"where pcat_id In (Select top 1 pcat_id from ag_prop_category where pcat_name='ƒополнительные начислени€'))"
+
+				If IsDate(OnDate) Then 
+					SQL = SQL + " and prop_fdate = " & Formatdate2(CDate(OnDate), "#yyyy/mm/dd#")
+				End If
+				workarea.daodatabase.execute SQL
+			End If
+		Next
+	End With
+End If

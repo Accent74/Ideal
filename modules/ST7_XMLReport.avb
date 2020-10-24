@@ -1,0 +1,668 @@
+Option Explicit
+Const prmTaxDept = "Налоговая инспекция"
+Const prmGNICodes = "Коды ГНИ"
+Const SectHead = "DHead"
+Const SectBody = "DBody"
+Const SectMulti = "MultiRow"
+
+' mapHead - Значения полей заголовка отчёта
+' выборка значений делается при формировании заголовка
+' должен быть глобальным. Потому что используется также при формировании имени файла
+Dim mapHead
+
+' ini - файл, из которого считываются формулы выборки данных для отчёта
+' должен ли быть глобальной переменной?
+Dim ini
+
+'________________________________________________
+Sub CreateXMLReport( IniPath )
+	Dim xml, fname
+
+	If Not GenerateXML( IniPath, xml ) Then
+		MsgBox "Из-за возникших ошибок, файл-отчёт не был создан", vbInformation
+		Exit Sub
+	End If
+
+	Select Case MsgBox( "Отчёт создан. Сохранить на дискету?" & vbNewLine & "Если вы нажмёте кнопку Да, отчёт будет сохранён на дискету." _
+		& vbNewLine & "Если нажмёте нет, будет выдано окно, позволяющее сохранить отчёт в любую выбранную вами папку." & vbNewLine & _
+		"Если нажмёте Отмена - отчёт не будет сохранён.", vbYesNoCancel + vbInformation )
+	Case vbYes
+		xml.save "A:\" & GetXMLFName
+	Case vbNo
+		fname = GetXMLFName
+		If GetFileName( fname ) Then xml.save fname
+	End Select
+End Sub
+
+'________________________________________________
+Function GenerateXML( iniPath, ByRef xmlDoc )
+	Dim xmlDECLAR, xml
+	Dim TaxDeptCodes
+
+	GenerateXML = False
+
+	Set mapHead = CreateLibObject( "Map" )
+	If Not GetTaxDeptCodes( mapHead ) Then Exit Function
+
+	Set ini = CreateLibObject( "IniFile" )
+	ini.FileName = iniPath
+
+	Set xmlDoc = CreateObject( "MSXML.DOMDocument" )
+	Set xml = xmlDoc.createProcessingInstruction("xml","version='1.0' encoding='windows-1251'")
+	xmlDoc.insertBefore xml, Null
+
+	' Генерируем элемент DECLAR, состоящий из DHead & DBody
+	Set xmlDECLAR = xmlDoc.createElement( "DECLAR" )
+	xmlDECLAR.SetAttribute "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"
+	xmlDECLAR.SetAttribute "xsi:noNamespaceSchemaLocation", CreateObject( "Scripting.FileSystemObject" ).GetBaseName( iniPath ) & ".XSD"
+
+	If Not GenerateHead( xmlDoc, xml ) Then Exit Function
+	xmlDECLAR.AppendChild xml
+
+	If Not GenerateBody( xmlDoc, xml ) Then Exit Function
+	xmlDECLAR.AppendChild xml
+
+	xmlDoc.insertBefore xmlDECLAR, Null
+	GenerateXML = True
+End Function
+
+'________________________________________________
+Function GenerateHead ( DOMDoc, ByRef xml )
+	Dim keys, xmlNODE, i, res
+
+	GenerateHead = False
+	Set xml = DOMDoc.CreateElement( "DECLARHEAD" )
+
+	keys = ini.SectionKeys( SectHead )
+
+	If UBound( keys ) < 0 Then
+		MsgBox "INI-файл не найден! (" & ini.FileName & "). Или пуста секция " & SectHead, vbCritical
+		Exit Function
+	End If
+
+	For i = 0 To UBound(keys)
+		Set xmlNODE = DOMDoc.CreateElement(keys(i))
+		If "" = ini.StringKey(SectHead, keys(i)) Then
+			res = ""
+		Else
+			res = Eval( ini.StringKey( SectHead, keys( i )))
+		End If
+		xmlNODE.Text = res
+		xml.AppendChild xmlNODE
+
+		' "кэшируем" вычисленные значения
+		mapHead( keys( i )) = res
+	Next
+
+	GenerateHead = True
+End Function
+
+'________________________________________________
+Function GenerateBody( DOMDoc, ByRef xmlBody )
+	Dim keys, xmlNODE, i, res
+
+	GenerateBody = False
+	Set xmlBody = DOMDoc.CreateElement( "DECLARBODY" )
+
+	keys = ini.SectionKeys( SectBody )
+
+	If UBound( keys )<0 Then
+		MsgBox "INI-файл не найден! (" & ini.FileName & ")", vbCritical
+		Exit Function
+	End If
+	For i = 0 To UBound( keys )
+		If ini.StringKey( SectBody, keys( i )) <> "" Then
+			res = Trim( Eval( ini.StringKey( SectBody, keys( i ))))
+			If Len( res ) <> 0 Then
+				Set xmlNODE = DOMDoc.CreateElement( keys( i ))
+				xmlNODE.Text = res
+				xmlBody.AppendChild( xmlNODE )
+			End If
+		End If
+	Next
+	GenerateBody = True
+End Function
+
+'________________________________________________
+Function GetXMLFName()
+	GetXMLFName = JoinNums( mapHead, Array( "C_REG", 2, "C_RAJ", 2, "TIN", 10, _
+			"C_DOC", 3, "C_DOC_SUB", 3, "C_DOC_VER", 2, _
+			"C_DOC_STAN", 1, "C_DOC_TYPE", 2, "C_DOC_CNT", 5, _
+			"PERIOD_MONTH", 2, "PERIOD_YEAR", 4 )) & ".xml"
+End Function
+
+
+'________________________________________________
+' Function JoinNums( mSrc, arNames )
+' В функцию передаётся вектор пар "имя ключа", "минимальное количество символов"
+' нужно извлечь значения из словаря mSrc. Дополнить их до минимальной длины нулями.
+' Вернуть в результате объединённую строку значений
+'________________________________________________
+Function JoinNums( mSrc, arNames )
+	Dim i, ar()
+	ReDim ar( UBound( arNames ) \ 2 )
+	For i = 0 To UBound( ar )
+		ar( i ) = StrRightJstfd( mSrc( arNames( i * 2 )), arNames(( i * 2 ) + 1 ), "0" )
+	Next
+	JoinNums = Join( ar, "" )
+End Function
+
+'________________________________________________
+' Concatenate Cells
+' вернуть строку, содержащую объединённое содержимое перечисленных в ar ячеек
+Function CatCells( ar, sht )
+	Dim i, arVal()
+	ReDim arVal( UBound( ar ) \ 2 )
+	With ShtBook.Sheet(sht)
+		For i = 0 To UBound( arVal )
+			arVal( i ) = Trim( .Cell( ar( i * 2 ), ar( i * 2 + 1 )).Value )
+			' если вначале стоит кавычка, исключаем её из текста
+			If Left( arVal( i ), 1 ) = "'" Then
+				arVal( i ) = Mid( arVal( i ), 2, Len( arVal( i )) - 1 )
+			End If
+		Next
+	End With
+	CatCells = Join( arVal, "" )
+End Function
+
+'________________________________________________
+' Concatenate Cells from single row
+' вернуть строку, содержащую объединённое содержимое перечисленных в ar ячеек
+Function CatRowCells(ar, rownum, sht)
+	Dim i, s, ar1()
+	ReDim ar1(UBound(ar)*2+1)
+	For i = 0 To UBound(ar)
+		ar1(i*2) = rownum
+		ar1(i*2+1) = ar(i)
+	Next
+	CatRowCells = CatCells(ar1, sht)
+End Function
+
+'________________________________________________
+Function CellVal( Row, Col, sht )
+	Dim a
+	a = Trim( ShtBook.Sheet( sht ).Cell( Row, Col ).Value )
+	If a = "0" Then
+		CellVal = ""
+	Else
+		CellVal = a
+	End If
+End Function
+
+'________________________________________________
+' Function CellVal1( Row, Col, sht )
+' вернуть содержимое ячейки
+' нулевое значение в ячейке не считается "пустым"
+'________________________________________________
+Function CellVal1( Row, Col, sht )
+	CellVal1 = Trim( ShtBook.Sheet( sht ).Cell( Row, Col ).Value )
+End Function
+
+'________________________________________________
+' Function CellVal2( Row, Col, sht )
+' вернуть содержимое ячейки
+' минимум функционала. Просто удобное "сокращение". Чтобы меньше букв писать в ini-файле
+'________________________________________________
+Function CellVal2( Row, Col, sht )
+	CellVal2 = ShtBook.Sheet( sht ).Cell( Row, Col ).Value
+End Function
+
+'________________________________________________
+Function CheckVal(Row, Col, sht)
+	CheckVal = Iif( Len( CellVal( Row, Col, sht )) = 0, "", 1 )
+End Function
+
+'________________________________________________
+' Пример вызова: MultiRow( "T1", 1, ini, xmlBody, Array( "T1RXXXXG1S", "T1RXXXXG2", "T1RXXXXG3", "T1RXXXXG4" ))
+' mrID - здесь имя таблицы служит для того, чтобы легко найти в отчёте все строки этой таблицы
+' программа считает, что в последнем ( предположительно "скрытом" ) столбце отчёта, нужные строки отмечены "именем таблицы"
+'________________________________________________
+Function MultiRow( mrID, ShtNo, ini, xmlParent, arID )
+	Dim i, res, rowNum, CurRow, col1
+	Dim arFormula(), xmlNODE, xmlDOC
+
+	' CellVal( CurRow, 14, 1 )
+
+	' одноразово выбираем в массив все формулы данной "таблицы" из ini
+	ReDim arFormula( UBound( arID ))
+	For i = 0 To UBound( arID )
+		arFormula( i ) = ini.StringKey( SectMulti, arID( i ))
+	Next
+
+	Set xmlDOC = xmlParent.ownerDocument
+	MultiRow = ""
+	rowNum = 1
+	col1 = ShtBook.Sheet( ShtNo ).Columns
+	For CurRow = 1 To ShtBook.Sheet( ShtNo ).Rows
+		If ShtBook.Sheet( ShtNo ).Cell( CurRow, col1 ).Value = mrID Then
+			For i = 0 To UBound( arID )
+				If Len( arFormula( i )) > 0 Then
+					res = Trim( Eval( arFormula( i )))
+					If Len( res ) <> 0 Then
+						Set xmlNODE = xmlDOC.CreateElement( arID( i ))
+						xmlNODE.Text = res
+						xmlNODE.SetAttribute "ROWNUM", rowNum
+						xmlParent.AppendChild( xmlNODE )
+					End If
+				End If
+			Next
+			rowNum = rowNum + 1
+		End If
+	Next
+End Function
+
+'________________________________________________
+' Определяет последнюю строку вывода данных в таблице, для определения строк с итогами
+' Пример вызова MultiRow_End ("T1", 1) + OffSet
+' где OffSet - смещение для строк итогов
+'________________________________________________
+Function MultiRow_End ( mrID, ShtNo )
+
+	Dim i, row
+
+	With ShtBook.Sheet (ShtNo)
+		For i = 1 To .Rows
+			If .Cell (i, .Columns).Value = mrID Then
+				row = i
+			End If
+		Next	
+	End With
+	MultiRow_End = row
+
+End Function
+
+'________________________________________________
+Function GetDocType(flDoAsk, DefVal)
+'"C_DOC_TYPE"
+	Dim a
+	If flDoAsk Then
+		a = InputBox("Введите порядковый номер исправляющего документа", _
+			"Порядковый номер исправляющего документа", "1")
+		If a = "" Then
+			GetDocType = DefVal
+		Else
+			GetDocType = a
+		End If
+	Else
+		GetDocType = DefVal
+	End If
+End Function
+
+''________________________________________________
+'Function GetXMLFName1( xsdPath, repMonth, repYear )
+'	GetXMLFName1 = StrRightJstfd( GetSTIParam( "C_STI" ), 4, "0" ) & _
+'			StrRightJstfd( Workarea.MyCompany.Code, 10, "0" ) & _
+'			CreateObject( "Scripting.FileSystemObject" ).GetBaseName( xsdPath ) & _
+'			"00001" & _
+'			StrRightJstfd( repMonth, 2, "0" ) & _
+'			StrRightJstfd( repYear, 4, "0" ) & _
+'			".XML"
+'End Function
+
+'________________________________________________
+' String right-justified
+Function StrRightJstfd( s, Length, Fillchar )
+	StrRightJstfd = String( Length - Len( s ), Fillchar ) & s
+End Function
+
+'________________________________________________
+Function CheckZero(val1, defVal)
+	If Not IsNumeric(val1) Then
+		CheckZero = defVal
+	ElseIf Round2(val1, 4)=0 Then
+		CheckZero = defVal
+	Else
+		CheckZero = val1
+	End If
+End Function
+
+'________________________________________________
+Function FormatCur2XML(String1)
+	Dim s1
+	s1 = Replace(String1, "'", "")
+	s1 = Replace(s1, " ", "")
+	s1 = Replace(s1, ",", ".")
+	FormatCur2XML = s1
+End Function
+
+'________________________________________________
+' Function Date2Num( d )
+' устаревшее
+' используйте функцию ToDGDate в новых программах 
+'________________________________________________
+Function Date2Num( d )
+	Date2Num = Replace( FormatDate2( d, "dd/mm/yyyy" ), "/", "" )
+End Function
+
+' функции для извлечения данных из форм Акцента
+'________________________________________________
+Function CtrlVal( CtrlName )
+	Dim a
+	a = Trim( Form.Control( CtrlName ).Value )
+	If a = "0" Then
+		CtrlVal = ""
+	Else
+		CtrlVal = a
+	End If
+End Function
+
+'________________________________________________
+Function CheckVal_Form( CtrlName )
+	CheckVal_Form = Iif( Len( CtrlVal( CtrlName )) = 0, "", 1 )
+End Function
+
+'________________________________________________
+Function TblCell( tblName, row, col, funcRef )
+	Dim a
+	a = funcRef( Form.Control( tblName ).Cell( row, col ).Value )
+	If a = "0" Then
+		TblCell = ""
+	Else
+		TblCell = a
+	End If
+End Function
+
+'________________________________________________
+Function TblCheck( tblName, row, col )
+	Dim a
+	a = Trim( Form.Control( tblName ).Cell( row, col ).Value )
+	TblCheck = Iif( Len( a ) = 0, "", 1 )
+End Function
+
+'________________________________________________
+Function TblCombo1( tblName, row, col )
+	Dim a
+	a = Form.Control( tblName ).Cell( row, col ).Value
+	If a <= 1 Then
+		TblCombo1 = ""
+	Else
+		TblCombo1 = a - 1
+	End If
+End Function
+
+'________________________________________________
+' Concatenate Cells
+' вернуть строку, содержащую объединённое содержимое перечисленных в ar ячеек
+Function TblCatCells( tblName, ar )
+	Dim i, arVal()
+	ReDim arVal( UBound( ar ) \ 2 )
+	With Form.Control( tblName )
+		For i = 0 To UBound( arVal )
+			arVal( i ) = .Cell( ar( i * 2 ), ar( i * 2 + 1 )).Value
+		Next
+	End With
+	TblCatCells = Join( arVal, "" )
+End Function
+
+'________________________________________________
+' Concatenate Cells from single row
+' вернуть строку, содержащую объединённое содержимое перечисленных в ar ячеек
+Function TblRowCells( tblName, rownum, ar )
+	Dim i, s, ar1()
+	ReDim ar1( UBound( ar ) * 2 + 1 )
+	For i = 0 To UBound( ar )
+		ar1( i * 2 ) = rownum
+		ar1( i * 2 + 1 ) = ar( i )
+	Next
+	TblRowCells = TblCatCells( tblName, ar1 )
+End Function
+
+''________________________________________________
+'Function FormCur2XML(String1)
+'	FormCur2XML = Replace(String1, ",", ".")
+'End Function
+
+'________________________________________________
+Function MultiRowSgrd( tblName, ini, xmlParent, arID )
+	Dim i, res, CurRow
+	Dim arFormula(), xmlNODE, xmlDOC
+
+	MultiRowSgrd = ""
+	Set xmlDOC = xmlParent.ownerDocument
+
+	' одноразово выбираем в массив все формулы данной "таблицы" из ini
+	' CellVal( CurRow, 14, 1 )
+	ReDim arFormula( UBound( arID ))
+	For i = 0 To UBound( arID )
+		arFormula( i ) = ini.StringKey( SectMulti, arID( i ))
+	Next
+
+	With Form.Control( tblName )
+		For CurRow = 1 To .Rows
+			For i = 0 To UBound( arID )
+				If Len( arFormula( i )) > 0 Then
+					res = Trim( Eval( arFormula( i )))
+					If Len( res ) <> 0 Then
+						Set xmlNODE = xmlDOC.CreateElement( arID( i ))
+						xmlNODE.Text = res
+						xmlNODE.SetAttribute "ROWNUM", CurRow
+						xmlParent.AppendChild( xmlNODE )
+					End If
+				End If
+			Next
+		Next
+	End With
+End Function
+
+'________________________________________________
+Function ToDGdecimal2( num )
+	Const TristateTrue = -1, TristateFalse = 0, TristateUseDefault = -2
+	If num = 0 Then
+		ToDGdecimal2 = ""
+	Else
+		ToDGdecimal2 = Replace( FormatNumber( num, 2, TristateTrue, TristateFalse, TristateFalse ), ",", "." )
+	End If
+End Function
+
+'________________________________________________
+Function ToDGdecimal( num, prec )
+	Const TristateTrue = -1, TristateFalse = 0, TristateUseDefault = -2
+	Select Case VarType( num )
+	Case vbString
+		ToDGdecimal = Replace ( num, ",", "." )
+	Case Else
+		If num = 0 Then
+			ToDGdecimal = ""
+		Else
+			ToDGdecimal = Replace( FormatNumber( num, prec, TristateTrue, TristateFalse, TristateFalse ), ",", "." )
+		End If
+	End Select
+End Function
+
+'________________________________________________
+' Function ToDGOzn( num )
+' Преобразовать "содержимое" ячейки к целому числу
+'________________________________________________
+Function ToDGOzn( num )
+	If CStr( num ) = "'0" Then
+		ToDGOzn = "0"
+	Else
+		ToDGOzn = CStr( num )
+	End If
+End Function
+
+'________________________________________________
+Function ToDGDate( d )
+	Select Case VarType( d )
+		Case vbString
+			If d = "" Then
+				ToDGDate = ""
+			Else
+				ToDGDate = Replace( FormatDate2( d, "dd/mm/yyyy" ), "/", "" )
+			End If
+		Case Else
+			If d = 0 Then
+				ToDGDate = ""
+			Else
+				ToDGDate = Replace( FormatDate2( d, "dd/mm/yyyy" ), "/", "" )
+			End If
+	End Select
+End Function
+
+''________________________________________________
+'Function ToDGDate( d )
+'	If d = 0 Then
+'		ToDGDate = ""
+'	Else
+'		ToDGDate = Replace( FormatDate2( d, "dd/mm/yyyy" ), "/", "" )
+'	End If
+'End Function
+
+'________________________________________________
+Function ToString( s )
+	ToString = Trim( s )
+End Function
+
+'________________________________________________
+' Function CheckZero1( s )
+' отсеить значения, которые обозначают ноль
+'________________________________________________
+Function CheckZero1( s )
+	CheckZero1 = s
+	If Len( Trim( s )) = 0 Then CheckZero1 = ""
+	If s = "'-" Then CheckZero1 = ""
+	If s = "-" Then CheckZero1 = ""
+End Function
+
+'________________________________________________
+' Function StrEscaped( s )
+' заменить в строке служебные символы XML на специальные строки
+'________________________________________________
+Function StrEscaped( s )
+	Dim s1
+	s1 = Replace( s, "&", " " )
+	s1 = Replace( s1, """", " " )
+	s1 = Replace( s1, "'", " " )
+	s1 = Replace( s1, "<", " " )
+	StrEscaped = Trim( Replace( s1, ">", " " ))
+'	s1 = Replace( s, "&", "&amp;" ) ' эта замена должна быть первой!!
+'	s1 = Replace( s1, """", "&quot;" )
+'	s1 = Replace( s1, "'", "&apos;" )
+'	s1 = Replace( s1, "<", "&lt;" )
+'	StrEscaped = Trim( Replace( s1, ">", "&gt;" ))
+End Function
+
+'________________________________________________
+' Function INN2XML( s )
+' отсеивает ( например, в Реестре НН ) "крестики"
+' если корреспондент - не плательщик НДС, то в реестре НН в графе ИНН ставится крест: X
+'________________________________________________
+Function INN2XML( s )
+	If IsNumeric( s ) Then
+		INN2XML = Trim( s )
+	Else
+		INN2XML = ""
+	End If
+End Function
+
+'________________________________________________
+Function GetFileName( ByRef fname )
+	Dim FDlg
+
+	Set FDlg = CreateLibObject( "FileDialog" )
+	FDlg.Caption = "Выберите папку для сохранения отчёта"
+
+	If Len(fname)>0 Then	FDlg.DefaultName = fname
+
+	FDlg.Filter = "XML (*.xml)|*.xml|Все файлы (*.*)|*.*"
+
+	If FDlg.ShowSave = vbOK Then
+		fname = FDlg.PathName
+		GetFileName = True
+	Else
+		GetFileName = False
+	End If
+End Function
+
+'________________________________________________
+Function GetTaxDeptCodes( ByRef m )
+	Dim id, s, ar
+
+	GetTaxDeptCodes = False
+
+	id = Workarea.MyCompany.Params.Item( prmTaxDept ).Value2
+'	If IsNull( id ) Then
+'		MsgBox "Укажите налоговую инспекцию в Свойствах " & Workarea.MyCompany.Name & " !", vbCritical, "Ошибка " & App.AppName
+'	Else
+		s = Workarea.Agent( id ).Params( prmGNICodes ).Value2
+		ar = Split( s, "/" )
+		If UBound( ar ) = 3 Then
+			m( "C_REG" ) = ar( 0 )
+			m( "C_RAJ" ) = ar( 1 )
+			m( "C_STI" ) = ar( 2 )
+			m( "T_STI" ) = ar( 3 )
+			GetTaxDeptCodes = True
+'		Else
+'			MsgBox "Задайте 'Коды ГНИ' в окне свойств у " & Workarea.MyCompany.Name, vbCritical, "Ошибка " & App.AppName
+		End If
+'	End If
+End Function
+
+'________________________________________________
+' Function GetSTIParam( ParamName )
+' устаревающая функция. Параметры ГНИ можно выбрать из mapHead
+'________________________________________________
+Function GetSTIParam( ParamName )
+	GetSTIParam = mapHead( ParamName )
+End Function
+
+'________________________________________________
+Sub DoXMLReport1( DocName, obj )
+	Dim xml, fname
+
+	If Not GenerateXML( DocName & ".INI", xml ) Then
+		MsgBox "Из-за возникших ошибок, файл-отчёт не был создан", vbInformation
+		Exit Sub
+	End If
+
+	Select Case MsgBox( "Отчёт создан. Сохранить на дискету?" & vbNewLine & "Если вы нажмёте кнопку Да, отчёт будет сохранён на дискету." _
+		& vbNewLine & "Если нажмёте нет, будет выдано окно, позволяющее сохранить отчёт в любую выбранную вами папку." & vbNewLine & _
+		"Если нажмёте Отмена - отчёт не будет сохранён.", vbYesNoCancel + vbInformation )
+	Case vbYes
+		xml.save "A:\" & GetXMLFName
+	Case vbNo
+		fname = GetXMLFName
+		If GetFileName( fname ) Then xml.save fname
+	End Select
+
+'	Select Case MsgBox( "Отчёт создан. Сохранить на дискету?" & vbNewLine & "Если вы нажмёте кнопку Да, отчёт будет сохранён на дискету." _
+'		& vbNewLine & "Если нажмёте нет, будет выдано окно, позволяющее сохранить отчёт в любую выбранную вами папку." & vbNewLine & _
+'		"Если нажмёте Отмена - отчёт не будет сохранён.", vbYesNoCancel + vbInformation )
+'	Case vbYes
+'		xml.save "A:\" & GetXMLFName1( DocName & ".xsd", obj.Map( "PERIOD_MONTH" ), obj.Map( "PERIOD_YEAR" ))
+'	Case vbNo
+'		fname = GetXMLFName1( DocName & ".xsd", obj.Map( "PERIOD_MONTH" ), obj.Map( "PERIOD_YEAR" ))
+'		If GetFileName( fname ) Then xml.save fname
+'	End Select
+End Sub
+
+Function MyCoPropertyTest()
+	With Workarea.Mycompany
+		If Not .Params.Exists("Налоговая инспекция") Then
+			MsgBox "У корреспондента Моя фирма отсутствует параметр 'Налоговая инспекция'" & vbNewLine & _
+						"Экспорт отчетов в XML файл невозможен.", vbCritical, "Внимание !"
+			MyCoPropertyTest = False
+			Exit Function
+		End If
+
+		If .Params("Налоговая инспекция").Value2 = 0 Then
+			MsgBox "Установите свойство ""Налоговая инспекция"" в " & _
+						"диалоге свойств корреспондента Моя фирма" & vbNewLine & _
+						"Экспорт отчетов в XML файл невозможен.", vbCritical, "Внимание !"
+			MyCoPropertyTest = False
+			Exit Function
+		End If
+
+		If Workarea.Agent(.Params("Налоговая инспекция").Value2).Params("Коды ГНИ").Value2= "" Then
+			MsgBox "Заполните свойства корреспондента ""Налоговая инспекция"" в " & _
+						"диалоге свойств корреспондента Моя фирма по кнопке ""Коды ГНИ""" & vbNewLine & _
+						"Экспорт отчетов в XML файл невозможен.", vbCritical, "Внимание !"
+			MyCoPropertyTest = False
+			Exit Function
+
+		End If
+	End With
+
+	MyCoPropertyTest = True
+
+End Function

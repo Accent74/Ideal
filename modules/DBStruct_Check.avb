@@ -1,0 +1,519 @@
+Option Explicit
+' проверка структуры БД для DAO-версии программы семейства Акцент
+
+' файл с данными об образцовой БД. Для сравнения с текущей БД
+'#include "DBStruct_Etalon.avb"
+
+Const dbRelationUnique = 1, dbRelationDontEnforce = 2, dbRelationInherited = 4, dbRelationUpdateCascade = 256, dbRelationDeleteCascade = 4096
+'dbRelationUnique	Связь имеет тип отношения "один-к-одному".
+'dbRelationDontEnforce	Отключается режим обеспечения целостности данных.
+'dbRelationInherited	Связь определена не в текущей базе данных, две присоединенные таблицы содержатся во внешней базе данных.
+'dbRelationUpdateCascade	Задается режим каскадного обновления.
+'dbRelationDeleteCascade	Задается режим каскадного удаления.
+
+Const dbSystemObject = -2147483646
+Const dbAutoIncrField = 16
+
+' Константы для файлового ввода/вывода
+Const ForReading = 1, ForWriting = 2, ForAppending = 8
+Const TristateTrue = -1, TristateFalse = 0, TristateUseDefault = -2
+
+'________________________________________________
+'Sub DoCheck( arParams )
+' Основная процедура программы
+' MsgOnComplete:
+' 0 - не выдавать сообщение с итогами проверки на экран
+' 1 - всегда выдавать сообщение с итогами проверки на экран
+' 2 - если найдены ошибки в структуре, то выдать сообщение с итогами проверки на экран
+' LogLevel:
+' 0 - работа без лог-файла
+' 1 - записать только код результата проверки ( 0 = ОК, иначе - в структуре есть ошибки )
+' 2 - только итоги (то же, что выводится в окошке на экран)
+' 9 - подробно описывать каждый шаг
+' LogPath:
+' Путь и имя Лог-файла
+' LogAppend:
+' Флаг, Истина - добавлять сообщения к Лог-файлу, Ложь - затирать старые результаты
+'________________________________________________
+Sub DoCheck( arParams )
+	Dim MsgOnComplete, LogLevel, LogPath, LogAppend
+	Dim sLog ' "Лог". Строка, в которую записывается ход проверки. 
+
+	' msg - текст с перечнем ошибок и итогами
+	Dim msg
+
+	MsgOnComplete = arParams( 0 )
+	LogLevel = arParams( 1 )
+	LogPath = arParams( 2 )
+	LogAppend = arParams( 3 )
+
+	' проверка структуры БД для DAO-версии
+	If App.AppType <> "DAO" Then
+		If MsgOnComplete <> 0 Then
+			MsgBox "Программа предназначена для проверки DAO-версии программ семейства Акцент", vbCritical
+		End If
+		Exit Sub
+	End If
+
+	If CheckStruct( LogLevel, sLog, msg ) Then
+		If MsgOnComplete = 1 Then MsgBox msg, vbInformation
+	Else
+		If MsgOnComplete <> 0 Then MsgBox msg, vbInformation
+	End If
+
+	If LogLevel <> 0 Then
+		' записываем Лог-файл
+		With CreateObject( "Scripting.FileSystemObject" ).OpenTextFile( LogPath, Iif( LogAppend, ForAppending, ForWriting ), True, TristateFalse )
+			.Write sLog
+			.Close
+		End With
+	End If
+End Sub
+
+'________________________________________________
+' Sub CheckStruct( LogLevel, ByRef sLog, ByRef msg )
+' Непосредственно проверка структуры
+'________________________________________________
+Function CheckStruct( LogLevel, ByRef sLog, ByRef msg )
+	Dim arTbl, arRel, arPrimary, arCounters, EtalonVersion ' данные об образцовой БД: перечень таблиц, перечень связей, номер версии
+	Dim AppType, dbVer ' тип приложения ( =тип БД ) и версия тестируемой БД 
+
+	Dim dictTables, dictRelations, flProblemsExist, t, wc
+	Set wc = WaitCursor
+	flProblemsExist = False
+	Set dictTables = CreateObject( "Scripting.Dictionary" )
+	Set dictRelations = CreateObject( "Scripting.Dictionary" )
+	t = Timer
+
+	AccentTarget AppType, dbVer
+	ReadEtalon AppType, dbVer, EtalonVersion, arTbl, arRel, arPrimary, arCounters
+
+	Select Case LogLevel
+	Case 0
+		msg = CStr( Date + Time )
+		If dbVer <> EtalonVersion Then
+			msg = msg & vbNewLine & "Не совпадают версии для проверяемой (=" & dbVer & ") и эталонной (=" & EtalonVersion & ") баз данных"
+		End If
+		flProblemsExist = Not CheckTables( LogLevel, arTbl, dictTables, sLog, msg )
+		flProblemsExist = flProblemsExist Or ( Not CheckPrimary( LogLevel, arPrimary, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckCounters( LogLevel, arCounters, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckRelations( LogLevel, arRel, dictTables, dictRelations, sLog, msg ))
+		t = Timer - t
+		If flProblemsExist Then
+			msg = msg & vbNewLine & "Обнаружены проблемы в структуре БД" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		Else
+			msg = msg & vbNewLine & "Проблемы в структуре БД не обнаружены" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		End If
+	Case 1
+		msg = CStr( Date + Time )
+		If dbVer <> EtalonVersion Then
+			msg = msg & vbNewLine & "Не совпадают версии для проверяемой (=" & dbVer & ") и эталонной (=" & EtalonVersion & ") баз данных"
+		End If
+		flProblemsExist = Not CheckTables( LogLevel, arTbl, dictTables, sLog, msg )
+		flProblemsExist = flProblemsExist Or ( Not CheckPrimary( LogLevel, arPrimary, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckCounters( LogLevel, arCounters, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckRelations( LogLevel, arRel, dictTables, dictRelations, sLog, msg ))
+		t = Timer - t
+		If flProblemsExist Then
+			sLog = 1
+			msg = msg & vbNewLine & "Обнаружены проблемы в структуре БД" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		Else
+			sLog = 0
+			msg = msg & vbNewLine & "Проблемы в структуре БД не обнаружены" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		End If
+	Case 2
+		If dbVer = EtalonVersion Then
+			sLog = CStr( Date + Time )
+		Else
+			sLog = CStr( Date + Time ) & vbNewLine & "Не совпадают версии у проверяемой (=" & dbVer & ") и эталонной (=" & EtalonVersion & ") баз данных"
+		End If
+		msg = sLog
+		flProblemsExist = Not CheckTables( LogLevel, arTbl, dictTables, sLog, msg )
+		flProblemsExist = flProblemsExist Or ( Not CheckPrimary( LogLevel, arPrimary, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckCounters( LogLevel, arCounters, sLog, msg ))
+		flProblemsExist = flProblemsExist Or ( Not CheckRelations( LogLevel, arRel, dictTables, dictRelations, sLog, msg ))
+		t = Timer - t
+		If flProblemsExist Then
+			sLog = sLog & vbNewLine & "Обнаружены проблемы в структуре БД" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+			msg = msg & vbNewLine & "Обнаружены проблемы в структуре БД" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		Else
+			sLog = sLog & vbNewLine & "Проблемы в структуре БД не обнаружены" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+			msg = msg & vbNewLine & "Проблемы в структуре БД не обнаружены" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		End If
+	Case Else
+		msg = CStr( Date + Time )
+		sLog = "Приложение - " & AppType & vbNewLine & "Версия БД - " & dbVer & vbNewLine & "Версия эталонной БД - " & EtalonVersion
+		If dbVer <> EtalonVersion Then
+			msg = msg & vbNewLine & "Не совпадают версии для проверяемой (=" & dbVer & ") и эталонной (=" & EtalonVersion & ") баз данных"
+			sLog = sLog & vbNewLine & "Не совпадают версии для проверяемой (=" & dbVer & ") и эталонной (=" & EtalonVersion & ") баз данных"
+		End If
+		sLog = sLog & vbNewLine & "Проверка таблиц ..."
+		flProblemsExist = Not CheckTables( LogLevel, arTbl, dictTables, sLog, msg )
+		sLog = sLog & vbNewLine & "Готово" & vbNewLine & "Проверка первичных ключей ..."
+		flProblemsExist = flProblemsExist Or ( Not CheckPrimary( LogLevel, arPrimary, sLog, msg ))
+		sLog = sLog & vbNewLine & "Готово" & vbNewLine & "Проверка полей-счётчиков ..."
+		flProblemsExist = flProblemsExist Or ( Not CheckCounters( LogLevel, arCounters, sLog, msg ))
+		sLog = sLog & vbNewLine & "Готово" & vbNewLine & "Проверка связей ..."
+		flProblemsExist = flProblemsExist Or ( Not CheckRelations( LogLevel, arRel, dictTables, dictRelations, sLog, msg ))
+		t = Timer - t
+		sLog = sLog & vbNewLine & "Готово" & vbNewLine & "Тестирование БД окончено." & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		If flProblemsExist Then
+			sLog = sLog & vbNewLine & "Обнаружены проблемы в структуре БД"
+			msg = msg & vbNewLine & "Обнаружены проблемы в структуре БД" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		Else
+			sLog = sLog & vbNewLine & "Проблемы в структуре БД не обнаружены"
+			msg = msg & vbNewLine & "Проблемы в структуре БД не обнаружены" & vbNewLine & "Время работы = " & CStr( t ) & " сек."
+		End If
+	End Select
+	CheckStruct = Not flProblemsExist
+End Function
+
+'________________________________________________
+' Function CheckTables( LogLevel, arTbl, ByRef dictTables, ByRef sLog, ByRef msg )
+' Проверка наличия в базе данных необходимых таблиыц
+'________________________________________________
+Function CheckTables( LogLevel, arTbl, ByRef dictTables, ByRef sLog, ByRef msg )
+	Dim i
+	CheckTables = True
+
+	With Workarea.DAODatabase.TableDefs
+		For i = 0 To .Count - 1
+			dictTables( .Item( i ).Name ) = 1
+		Next
+	End With
+
+	Select Case LogLevel
+	Case 0, 1
+		For i = 0 To UBound( arTbl )
+			If Not dictTables.Exists( arTbl( i )) Then
+				CheckTables = False
+				msg = msg & vbNewLine & "Отсутствует таблица " & arTbl( i )
+			End If
+		Next
+	Case 2
+		For i = 0 To UBound( arTbl )
+			If Not dictTables.Exists( arTbl( i )) Then
+				CheckTables = False
+				msg = msg & vbNewLine & "Отсутствует таблица " & arTbl( i )
+				sLog = sLog & vbNewLine & "Отсутствует таблица " & arTbl( i )
+			End If
+		Next
+	Case Else
+		For i = 0 To UBound( arTbl )
+			If dictTables.Exists( arTbl( i )) Then
+				sLog = sLog & vbNewLine & "Существует " & arTbl( i )
+			Else
+				CheckTables = False
+				msg = msg & vbNewLine & "Отсутствует таблица " & arTbl( i )
+				sLog = sLog & vbNewLine & "Отсутствует таблица " & arTbl( i )
+			End If
+		Next
+	End Select
+End Function
+
+'________________________________________________
+' Function CheckPrimary( LogLevel, arPrimary, ByRef sLog, ByRef msg )
+' Проверка наличия в базе данных полей-"первичных ключей"
+'________________________________________________
+Function CheckPrimary( LogLevel, arPrimary, ByRef sLog, ByRef msg )
+	Dim i, j, e, k
+	Dim dictPrimary, arPm()
+	CheckPrimary = True
+
+	Set dictPrimary = CreateObject( "Scripting.Dictionary" )
+	With Workarea.DAODatabase.TableDefs
+		For i = 0 To .Count - 1
+			If ( .Item( i ).Attributes And dbSystemObject ) = 0 Then
+				For Each e In .Item( i ).Indexes
+					If e.Primary Then
+						For j = 0 To e.Fields.Count - 1
+							dictPrimary( .Item( i ).Name & "->" & e.Fields( j ).Name ) = 1
+						Next
+					End If
+				Next
+			End If
+		Next
+	End With
+
+	ReDim arPm( UBound( arPrimary ))
+
+	Select Case LogLevel
+	Case 0, 1
+		For i = 0 To UBound( arPrimary ) Step 2
+			If Not dictPrimary.Exists( arPrimary( i ) & "->" & arPrimary( i + 1 )) Then
+				CheckPrimary = False
+				msg = msg & vbNewLine & "Отсутствует Первичный ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+				arPm( k ) = arPrimary( i )
+				arPm( k + 1 ) = arPrimary( i + 1 )
+				k = k + 2
+			End If
+		Next
+	Case 2
+		For i = 0 To UBound( arPrimary ) Step 2
+			If Not dictPrimary.Exists( arPrimary( i ) & "->" & arPrimary( i + 1 )) Then
+				CheckPrimary = False
+				msg = msg & vbNewLine & "Отсутствует Первичный ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+				sLog = sLog & vbNewLine & "Отсутствует Первичный ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+				arPm( k ) = arPrimary( i )
+				arPm( k + 1 ) = arPrimary( i + 1 )
+				k = k + 2
+			End If
+		Next
+	Case Else
+		For i = 0 To UBound( arPrimary ) Step 2
+			If dictPrimary.Exists( arPrimary( i ) & "->" & arPrimary( i + 1 )) Then
+				sLog = sLog & vbNewLine & "Существует ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+			Else
+				CheckPrimary = False
+				msg = msg & vbNewLine & "Отсутствует Первичный ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+				sLog = sLog & vbNewLine & "Отсутствует Первичный ключ " & arPrimary( i ) & "->" & arPrimary( i + 1 )
+				arPm( k ) = arPrimary( i )
+				arPm( k + 1 ) = arPrimary( i + 1 )
+				k = k + 2
+			End If
+		Next
+	End Select
+
+	If IsEmpty( k ) Then
+		Workarea.Map.Remove "DBStruct_NoPrimary"
+	Else
+		ReDim Preserve arPm( k - 1 )
+		Workarea.Map( "DBStruct_NoPrimary" ) = arPm
+	End If
+End Function
+
+'________________________________________________
+' Function CheckCounters( LogLevel, arCounters, ByRef sLog, ByRef msg )
+' Проверка наличия в базе данных полей-счётчиков
+'________________________________________________
+Function CheckCounters( LogLevel, arCounters, ByRef sLog, ByRef msg )
+	Dim i, j, e, dictCnt
+	CheckCounters = True
+
+	Set dictCnt = CreateObject( "Scripting.Dictionary" )
+	With Workarea.DAODatabase.TableDefs
+		For i = 0 To .Count - 1
+			If ( .Item( i ).Attributes And dbSystemObject ) = 0 Then
+				For Each e In .Item( i ).Fields
+					If ( e.Attributes And dbAutoIncrField ) <> 0 Then
+						dictCnt( .Item( i ).Name & "->" & e.Name ) = 1
+					End If
+				Next
+			End If
+		Next
+	End With
+
+	Select Case LogLevel
+	Case 0, 1
+		For i = 0 To UBound( arCounters ) Step 2
+			If Not dictCnt.Exists( arCounters( i ) & "->" & arCounters( i + 1 )) Then
+				CheckCounters = False
+				msg = msg & vbNewLine & "Отсутствует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+			End If
+		Next
+	Case 2
+		For i = 0 To UBound( arCounters ) Step 2
+			If Not dictCnt.Exists( arCounters( i ) & "->" & arCounters( i + 1 )) Then
+				CheckCounters = False
+				msg = msg & vbNewLine & "Отсутствует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+				sLog = sLog & vbNewLine & "Отсутствует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+			End If
+		Next
+	Case Else
+		For i = 0 To UBound( arCounters ) Step 2
+			If dictCnt.Exists( arCounters( i ) & "->" & arCounters( i + 1 )) Then
+				sLog = sLog & vbNewLine & "Существует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+			Else
+				CheckCounters = False
+				msg = msg & vbNewLine & "Отсутствует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+				sLog = sLog & vbNewLine & "Отсутствует Счётчик " & arCounters( i ) & "->" & arCounters( i + 1 )
+			End If
+		Next
+	End Select
+End Function
+
+'________________________________________________
+' Function CheckRelations( LogLevel, arRel, ByRef dictTables, ByRef dictRelations, ByRef sLog, ByRef msg )
+' Проверка наличия в базе данных необходимых таблиыц
+'________________________________________________
+Function CheckRelations( LogLevel, arRel, ByRef dictTables, ByRef dictRelations, ByRef sLog, ByRef msg )
+	Dim i, s, k, arBadRel()
+	CheckRelations = True
+
+	With Workarea.DAODatabase.Relations
+		For i = 0 To .Count - 1
+			s = .Item( i ).Table & "." & .Item( i ).Fields( 0 ).Name & " -> " & .Item( i ).ForeignTable & "." & .Item( i ).Fields( 0 ).ForeignName
+			dictRelations( s ) = Array( .Item( i ).Name, .Item( i ).Attributes )
+		Next
+	End With
+
+	ReDim arBadRel((( UBound( arRel ) + 1 ) \ 6 ) * 4 - 1 )
+
+	Select Case LogLevel
+	Case 0, 1
+		For i = 0 To UBound( arRel ) Step 6
+			If Not dictRelations.Exists( RelationDescription( arRel, i )) Then
+				CheckRelations = False
+				msg = msg & vbNewLine & "Отсутствует связь " & arRel( i )
+				arBadRel( k ) = arRel( i + 1 )
+				arBadRel( k + 1 ) = arRel( i + 3 )
+				arBadRel( k + 2 ) = arRel( i + 2 )
+				arBadRel( k + 3 ) = arRel( i + 4 )
+				k = k + 4
+			Else
+				If Not CheckRelAttributes( LogLevel, arRel( i ), arRel( i + 5 ), dictRelations( RelationDescription( arRel, i ))( 1 ), sLog, msg ) Then
+					CheckRelations = False
+				End If
+			End If
+		Next
+	Case 2
+		For i = 0 To UBound( arRel ) Step 6
+			If Not dictRelations.Exists( RelationDescription( arRel, i )) Then
+				CheckRelations = False
+				msg = msg & vbNewLine & "Отсутствует связь " & arRel( i )
+				sLog = sLog & vbNewLine & "Отсутствует связь " & arRel( i ) & ": " & RelationDescription( arRel, i )
+				arBadRel( k ) = arRel( i + 1 )
+				arBadRel( k + 1 ) = arRel( i + 3 )
+				arBadRel( k + 2 ) = arRel( i + 2 )
+				arBadRel( k + 3 ) = arRel( i + 4 )
+				k = k + 4
+			Else
+				If Not CheckRelAttributes( LogLevel, arRel( i ), arRel( i + 5 ), dictRelations( RelationDescription( arRel, i ))( 1 ), sLog, msg ) Then
+					CheckRelations = False
+				End If
+			End If
+		Next
+	Case Else
+		For i = 0 To UBound( arRel ) Step 6
+			If Not dictRelations.Exists( RelationDescription( arRel, i )) Then
+				CheckRelations = False
+				msg = msg & vbNewLine & "Отсутствует связь " & arRel( i )
+				sLog = sLog & vbNewLine & "Отсутствует связь " & arRel( i ) & ": " & RelationDescription( arRel, i )
+				arBadRel( k ) = arRel( i + 1 )
+				arBadRel( k + 1 ) = arRel( i + 3 )
+				arBadRel( k + 2 ) = arRel( i + 2 )
+				arBadRel( k + 3 ) = arRel( i + 4 )
+				k = k + 4
+			Else
+				sLog = sLog & vbNewLine & "Существует связь " & arRel( i ) & ": " & RelationDescription( arRel, i )
+				If Not CheckRelAttributes( LogLevel, arRel( i ), arRel( i + 5 ), dictRelations( RelationDescription( arRel, i ))( 1 ), sLog, msg ) Then
+					CheckRelations = False
+				End If
+			End If
+		Next
+	End Select
+
+	If IsEmpty( k ) Then
+		Workarea.Map.Remove "DBStruct_NoRelation"
+	Else
+		ReDim Preserve arBadRel( k - 1 )
+		Workarea.Map( "DBStruct_NoRelation" ) = arBadRel
+	End If
+End Function
+
+'________________________________________________
+Function RelationDescription( arRel, n )
+	RelationDescription = arRel( n + 1 ) & "." & arRel( n + 3 ) & " -> " & arRel( n + 2 ) & "." & arRel( n + 4 )
+End Function
+
+'________________________________________________
+' проверяем атрибуты у связи
+Function CheckRelAttributes( LogLevel, RelName, attrEtalon, attrDB, ByRef sLog, ByRef msg )
+	Dim a1, a2, a3, a4
+
+	If attrEtalon = attrDB Then
+		CheckRelAttributes = True
+		If LogLevel > 2 Then
+			sLog = sLog & vbNewLine & "Связь " & RelName & ": атрибуты совпадают с образцовым значением"
+		End If
+	Else
+		CheckRelAttributes = False
+		a1 = ( attrEtalon And dbRelationUnique ) - ( attrDB And dbRelationUnique )
+		a2 = ( attrEtalon And dbRelationDontEnforce ) - ( attrDB And dbRelationDontEnforce )
+		a3 = ( attrEtalon And dbRelationUpdateCascade ) - ( attrDB And dbRelationUpdateCascade )
+		a4 = ( attrEtalon And dbRelationDeleteCascade ) - ( attrDB And dbRelationDeleteCascade )
+
+		Select Case LogLevel
+		Case 0, 1
+			Select Case Sgn( a1 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть типа 'один-к-одному'"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть типа 'один-к-одному'"
+			End Select
+			Select Case Sgn( a2 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с отключенным режимом обеспечения целостности данных"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с отключенным режимом обеспечения целостности данных"
+			End Select
+			Select Case Sgn( a3 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного обновления"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного обновления"
+			End Select
+			Select Case Sgn( a4 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного удаления"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного удаления"
+			End Select
+		Case Else
+			Select Case Sgn( a1 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть типа 'один-к-одному'"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " должна быть типа 'один-к-одному'"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть типа 'один-к-одному'"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " не должна быть типа 'один-к-одному'"
+			End Select
+			Select Case Sgn( a2 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с отключенным режимом обеспечения целостности данных"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " должна быть с отключенным режимом обеспечения целостности данных"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с отключенным режимом обеспечения целостности данных"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " не должна быть с отключенным режимом обеспечения целостности данных"
+			End Select
+			Select Case Sgn( a3 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного обновления"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного обновления"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного обновления"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного обновления"
+			End Select
+			Select Case Sgn( a4 )
+			Case 1
+				msg = msg & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного удаления"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " должна быть с заданным режимом каскадного удаления"
+			Case -1
+				msg = msg & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного удаления"
+				sLog = sLog & vbNewLine & "Связь " & RelName & " не должна быть с заданным режимом каскадного удаления"
+			End Select
+		End Select
+	End If
+End Function
+
+'________________________________________________
+' Function GetRows_DAO( SQLText, ByRef ar )
+' Выполнение простого запроса (без передачи параметров)
+' Если запрос не вернул строк, функция возвращает False и пустой массив в "ar"
+' Если запрос вернул сколько-то строк, функция возвращает True и массив данных в "ar"
+' DAO
+'________________________________________________
+Function GetRows_DAO( SQLText, ByRef ar )
+	Dim n
+	With WorkArea.DAODataBase.OpenRecordset( SqlText )
+		GetRows_DAO = .eof
+		If .eof Then
+			ar = Array()
+		Else
+			.MoveLast
+			n = .RecordCount
+			.MoveFirst
+			ar = .GetRows( n )
+		End If
+	End With
+End Function

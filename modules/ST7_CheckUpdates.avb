@@ -1,0 +1,130 @@
+Option Explicit
+
+Const CHECK_DATE = "LAST_UPDATES_CHECK"
+
+'---
+'
+'---
+Sub CheckUpdates
+	Dim XMLHTTP
+	Dim sURL
+	Dim Flag
+
+	If Not Workarea.Params.Exists("Проверять обновления") Then Exit Sub
+	Flag = Workarea.Params("Проверять обновления").Value2
+
+	If Flag <> 0 Then 
+		If UCase(WorkArea.Enum("Логика").ItemNameID(Flag)) = "НЕТ" Then Exit Sub
+	End If 
+
+	If Not IsNull(workarea.userparam(CHECK_DATE)) Then
+		If workarea.userparam(CHECK_DATE) > Date Then
+			Exit Sub
+		End If
+	End If
+
+	Set XMLHTTP = CreateObject("Msxml2.XMLHTTP")
+
+	If Not XMLHTTP Is Nothing Then 
+		sURL = "http://www.accentsupport.com/testxml.aspx?" & app.licenseCode
+		Call XMLHTTP.open("GET", sURL, False)
+
+		On Error Resume Next
+
+		Call XMLHTTP.send(Nothing)
+
+		If err.number = 0 Then
+			If XMLHTTP.responseText <> "" Then 
+				ShowUpdates Replace(XMLHTTP.responseText, "Products ", "item ")
+			End If
+		End If
+
+		Err.Clear
+	End If
+
+	workarea.userparam(CHECK_DATE) = Date 
+
+End Sub
+'---
+'
+'---
+Sub ShowUpdates(xmlUpdatesList)
+	Dim DHTML
+	Dim Updates
+
+	Set DHTML = CreateLibObject("DHTMLDialog")
+
+	Set Updates = AddUpdates(xmlUpdatesList)
+
+	If Updates.Count > 0 Then
+		Set WorkArea.Map.Item("chk_Updates") = Updates
+		Set WorkArea.Map.Item("chk_DHTML") = DHTML
+
+		With DHTML
+			.URL = CreateLibObject("Redirect").GetFullPath("checkupdates.htm")
+			.SetArgument "WA", App.Workarea
+			.resizable = True
+			.height = Updates.Count * 8 + 150
+			.width = 350
+			.CreateModeless
+			
+		End With
+	End If
+
+End Sub
+'---
+'
+'---
+Function AddUpdates(xmlUpdatesList)
+	Dim Upd
+	Dim Code
+	Dim Updates
+	
+	Set Updates = CreateLibObject("Map")
+
+
+	On Error Resume Next
+	Set Upd = CreateLibObject("Map")
+	Upd.xml = xmlUpdatesList
+
+	If Err.Number = 0 Then
+		If Upd.Exists("PI7") Then
+			If Abs(CLng(Upd("PI7"))) > GetST7Version() Then
+				Updates("Идеал 7") = CLng(Upd("PI7"))
+			End If
+		End If
+
+		Code = Token(App.LicenseCode, 1, ".")
+
+		If Upd.Exists(Code) Then
+			If Abs(CLng(Upd(Code))) > App.Build Then
+				Updates("Акцент") = CLng(Upd(Code))
+			End If
+		End If
+	End If
+
+	Err.Clear
+
+	Set AddUpdates = Updates
+
+End Function
+'---
+'
+'---
+Function GetST7Version()
+	Dim i
+
+	For i = 1 To 10
+		If workarea.userparam("CONFIG_NAME" & i) = "Идеал" Then
+			GetST7Version = CLng(workarea.userparam("CONFIG_VERSION" & i))
+			Exit Function
+		End If
+	Next
+
+	GetST7Version = 0
+		
+End Function
+'---
+'
+'---
+		

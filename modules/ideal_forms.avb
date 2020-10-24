@@ -1,0 +1,27 @@
+Option Explicit
+
+Const MSG_BOX_CAPTION = "Идеал. Ввод данных"
+
+Function CheckType(id)
+	Dim ag, dIn, Dout, dLast
+
+	CheckType = True
+	If id = 0 Then Exit Function
+
+	Set ag = Workarea.Agent(id)
+
+	If ag.Type <> 3 Then
+		MsgBox "В список можно добавлять только сотрудников", vbOKOnly + vbExclamation, MSG_BOX_CAPTION
+		CheckType = False	
+	Else
+		dLast = Op.wperiod.lastday
+		dIn = Ag.Prop("Дата приема")
+		Dout = Ag.Prop("Дата увольнения")
+
+		If Not ((dIn <= dLast Or dIn = 0) And (Dout >= dLast Or Dout = 0)) Then
+			MsgBox "Работник не числился в периоде расчета.", vbOKOnly + vbExclamation, MSG_BOX_CAPTION
+			CheckType = False
+		End If
+	End If
+
+End Function

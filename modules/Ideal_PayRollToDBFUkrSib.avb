@@ -1,0 +1,95 @@
+Option Explicit
+
+'#include "definition.avb"
+
+Const DBF_FILE_NAME = "ukrsib"
+
+'----
+'
+'----
+Sub DoDbfRas(prm)
+	Dim rs, Op
+	Dim srcName, FS, f
+	Dim srcPath
+
+	Set Op = prm(0)
+	srcName = CreateLibObject("redirect").getfullpath(DBF_FILE_NAME & ".emt", True)
+
+	If Not Len(srcName) > 0 Then 
+		MsgBox "Шаблон для формирования DBF файла не обнаружен.", vbCritical, "Акцент 7.0"
+		Exit Sub
+	End If
+
+	srcPath = Left(srcName, InStrRev(srcName, "\", Len(srcName)-1)-1)+"\"
+
+	Set FS = CreateObject("Scripting.FileSystemObject")
+	FS.CopyFile srcName, srcPath + DBF_FILE_NAME + ".dbf", True
+
+	Set f = fs.GetFile(srcPath + DBF_FILE_NAME + ".dbf")
+
+	If f.attributes And 1 Then f.attributes = f.attributes - 1
+
+	Set Rs = GetDB(srcPath)
+	Write2DBF Rs, Op, prm(1)
+	rs.Close
+	
+	MsgBox "DBF файл сформирован.", vbInformation, "Акцент 7.0"
+
+End Sub
+
+'----
+'
+'----
+Sub Write2DBF(ByRef Rs, Op, MTD_PAY_ID)
+	Dim i
+
+	For i = 1 To op.Rows
+		With op.TransListR(i).Item(1)
+			If .AgID <>  0 Then 
+				rs.AddNew
+		
+				rs("TRAN_DATE") = op.Date
+				rs("CARD_ACCT") = .Agent.Prop("Номер карточки")
+				rs("AMOUNT") = .Tariff
+				rs("SLIP_NR") = CLng(i)
+				rs("TRAN_TYPE") 	= "Q2"
+				rs("CURRENC")	= "UAH"
+				rs("OPERATOR")	= "BIFIT"
+				rs.Update
+			End If 
+		End With
+	Next
+
+End Sub
+
+'----
+'
+'----
+Function GetDB(srcPath)
+	Dim db,rs
+
+	Select Case WorkArea.Application.AppType
+		Case "DAO"
+			Set db = WorkArea.DAODatabase
+			Set rs = db.OpenRecordset("select * from [" + DBF_FILE_NAME + ".dbf] In '" + srcPath + "' 'dBase IV;'")
+		Case "OLEDB"
+			Set db = CreateObject("AdoDB.Connection")
+			db.Provider = "Microsoft.Jet.OLEDB.4.0"
+			db.Properties("Extended properties") = "dBase IV"
+			db.Properties("Data Source") = srcPath
+			db.Open
+			Set rs = CreateObject("AdoDb.Recordset")
+			db.CursorLocation = 3
+			Set rs.ActiveConnection = db
+			rs.CursorType = 1
+			rs.LockType = 3
+			rs.Source = DBF_FILE_NAME + ".dbf"
+			rs.Open
+	End Select
+
+	Set GetDB = rs
+End Function
+
+'----
+'
+'----
