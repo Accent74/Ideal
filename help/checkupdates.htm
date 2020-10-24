@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+	<head>
+		<title>Акцент : Проверка обновлений</title>
+		<meta http-equiv="content-type" content="text/html; charset=windows-1251">
+		<LINK href="default.css" type="text/css" rel="stylesheet">
+			<script language="VBScript">
+		
+		Dim WA
+		Dim AlreadyShow
+		
+		AlreadyShow	= false
+
+		function window_onload()
+			Dim Updates
+			Dim i, keys
+			Dim NewRow
+			Dim NewCell
+			dim TextStr
+	
+			If Not AlreadyShow then
+				AlreadyShow = true
+				Set Updates = WA.Map("chk_Updates")
+				keys = Updates.keys
+	
+				for i = 0 to UBound(Keys)
+
+					Set NewRow = upd.insertrow(Row)
+					Set NewCell = NewRow.InsertCell(0)
+					TextStr = keys(i) & " версия " &  abs(Updates(keys(i)))
+					
+					if Updates(keys(i)) < 0 then 
+                        TextStr = TextStr & "<font style='text-decoration: blink; color: #FF0000'> не активна</font>"
+                        textmessage.innerHTML = "Ваша лицензия сейчас не активна. <br>" & _
+                                                "Обратитесь <a target='_blank' href='http://accent6.com/index.php/contacts'>" & _
+                                                "в компанию Импакт </a> для выяснения причин."
+                                                
+                    else
+                        textmessage.innerHTML = "Обновления установятся автоматически после следующего запуска программы " & _
+                                                "(при наличии прав администратора)"
+                    end if
+
+					upd.Rows(NewRow.RowIndex).Cells(0).InnerHTML = TextStr
+					
+				NExt
+		
+			end if
+		end Function
+
+        function Button1_onclick() 		
+            if AlreadyShow then
+                window.open "http://www.accentsupport.com/Updates.aspx"
+                AlreadyShow = false
+                wa.map.Item("chk_DHTML").CloseModeless
+            end if
+        end function
+	</script>
+	
+</head>
+	<body onload="window_onload()">
+		<h4><P>
+            Для Вас доступны обновления</P>
+		</h4>
+		<table id="upd" width="100%">
+		</table>
+           <table width="100%">
+           <tr>
+           <td align="right" id="textmessage" 
+                   style="text-align: left; border-top-style: outset; border-top-width: thin;">
+               &nbsp;</td>
+        </tr>
+        </table>
+	</body>
+</html>

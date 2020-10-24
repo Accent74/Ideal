@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+	<head>
+		<title>Акцент : Проверка обновлений</title>
+		<meta http-equiv="content-type" content="text/html; charset=windows-1251">
+		<LINK href="default.css" type="text/css" rel="stylesheet">
+			<script language="VBScript">
+		
+		Dim WA, XMLHTTP, oStream
+		Dim AlreadyShow, CurrentPos
+		Dim Keys, Updates
+		
+		AlreadyShow	= false
+        Set XMLHTTP = CreateObject("Msxml2.XMLHTTP")
+                
+		function window_onload()
+			If Not AlreadyShow then
+				AlreadyShow = true
+				set Updates = WA.Map.Item("updUpdates")
+				CurrentPos = 0
+				keys = Updates.keys
+	            loadupdates
+			end if
+		end Function
+        
+        function loadupdate()
+           if XMLHTTP.readyState = 4 then
+            If XMLHTTP.Status = 200 Then
+		      Set oStream = WA.Map.Item("updoStream")
+    	      oStream.Open
+      	      oStream.Type = 1
+       	      oStream.Write XMLHTTP.responseBody         
+		      oStream.SaveToFile Updates(Keys(CurrentPos))(1)
+			  oStream.Close
+			  
+			  loadupdates
+		    End If 
+           end if
+        end function
+        
+        function loadupdates
+            Dim sURL
+	
+	        CurrentPos = CurrentPos + 1
+	        if CurrentPos <= UBound(keys) then
+                gr.rows(0).cells(1).innerhtml = Updates(Keys(CurrentPos))(2)
+	            gr.rows(1).cells(1).innerhtml = Updates(Keys(CurrentPos))(1)
+	            gr.rows(2).cells(1).innerhtml = cstr(CurrentPos) & "/" & cstr(UBound(Keys))
+
+                Call XMLHTTP.open("GET", Updates(Keys(CurrentPos))(0), true)			
+                XMLHTTP.setRequestHeader "If-Modified-Since", "Sat, 1 Jan 2000 00:00:00 GMT"
+                XMLHTTP.onreadystatechange = getref("loadupdate")
+	            Call XMLHTTP.send(Nothing)         
+	        else
+	            set oStream = nothing
+                set XMLHTTP = nothing
+                wa.Map.Item("updDHTML").CloseModeless            
+	        end if
+	        
+        end function
+
+        function btnclick()
+            set oStream = nothing
+            set XMLHTTP = nothing
+            wa.Map.Item("updDHTML").CloseModeless                        
+        end function
+	</script>
+	
+</head>
+	<body onload="window_onload()">
+		<h4><P>
+            Загрузка обновлений</P>
+		</h4>
+        <table width="100%" id="gr">
+            <tr>
+                <td style="height: 15px">
+                    Решение :</td>
+                <td id="name" style="height: 15px">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Файл :</td>
+                <td id="filename">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Всего :
+                </td>
+                <td id="totals">           
+                    0/0
+                </td>
+            </tr>
+            <tr>
+                <td colspan = "2" align="right">
+                    <input id="Button1" type="button" value="Прервать" onclick="btnclick"/> 
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>
