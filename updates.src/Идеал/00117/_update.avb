@@ -7,6 +7,7 @@ Option Explicit
 '#include "_ideal_update_func.avb"
 '#include "ST74_ADO.avb"
 '#include "definition.avb"
+'#include "ST7_actionmenu_class.avb"
 
 Const CURR_YEAR = 2021
 
@@ -48,16 +49,29 @@ End Class
 
 'Dim updater
 'Set updater = New UpdateLog
-''
+'
 'stop
 'Main Updater
 '-------------------
 '
 '-------------------
 Sub Main(Updater)
-	updateindextables updater
-	AddTableParams updater
-	updatemethods updater
+	Dim MsgBar, m, r
+
+	updateindextables updater		' обновили индексы
+	AddTableParams updater			' обновили ставки
+	udpatecalendar updater			'	обновили календарь
+	updatemethods updater				'	исправили методы
+
+	Set m = New mActions 
+	Set r = m.Root
+	r.Create "График рабочего времени", "ideal_TimeWorkList.adg", 0, 2
+	m.Save
+
+	If updater.fail Then 
+		Set MsgBar = Msg()
+		MsgBar.Write "В процессе установки обновления произошли ошибки. Подробнее в файле Идеал_00117.log"
+	End If
 End Sub
 '----
 '
@@ -75,8 +89,8 @@ Sub AddTableParams(updater)
 	End If
 
 	UpdateUTFieldValue UTableID, "Максимальный доход", 90000.00, updater		'25 ПМ
-	UpdateUTFieldValue UTableID, USRTBL_MINLIF, 2270.00
-	UpdateUTFieldValue UTableID, USRTBL_MINCY, 6000.00
+	UpdateUTFieldValue UTableID, USRTBL_MINLIF, 2270.00, updater
+	UpdateUTFieldValue UTableID, USRTBL_MINCY, 6000.00, updater
 
 End Sub
 '----
@@ -175,8 +189,8 @@ End Sub
 '
 '----
 Sub 	updatemethods(updater)
-	updatemethodbyfilename "2411a ЕСВ (базовый, аванс).avb", updater
-	updatemethodbyfilename "2414 ЕСВ (базовый).avb", updater
+	updatemethodbyfilename "2411а ЕСВ (базовый, аванс).avb", updater
+	updatemethodbyfilename "2411 ЕСВ (базовый).avb", updater
 	updatemethod Workarea.GetSysCodeID("&ОПП"), "Общие подпрограммы.avb", updater
 End Sub
 '----

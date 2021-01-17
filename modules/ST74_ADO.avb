@@ -1,4 +1,7 @@
 Option Explicit
+
+Const ADODB_TIMEUOT = 600
+
 '---
 '
 '---
@@ -19,6 +22,7 @@ Function ADO_Query(QueryName, aQueryPrm, ByRef aData)
 		
 	' сообщаем, что команда это инструкция хранимая процедура
 	Cmd.CommandType = 4	
+	Cmd.CommandTimeout = ADODB_TIMEUOT
 
 	Set Rs = Cmd.Execute
 
@@ -57,6 +61,7 @@ Function GetRs(SQLString)
 
 		Set Cn = WorkArea.AdoConnection
 		Cn.CursorLocation = 3 'курсор на нашей стороне
+		Cn.CommandTimeout = ADODB_TIMEUOT
 
 		Set rs = CreateObject("AdoDb.Recordset")
 		Set rs.ActiveConnection = Cn
@@ -94,3 +99,145 @@ End Function
 '---
 '
 '---
+Function DAO_Query(QuerySQL, aQueryPrm, ByRef aData)
+	Dim n, i, Rs, QD, FistCmd
+
+	FistCmd = UCase(token(QuerySQL, 1, " "))
+
+	If FistCmd = "SELECT" Or FistCmd = "PARAMETERS" Then 
+		Set QD = Workarea.DAODataBase.CreateQuerydef("")
+		QD.SQL = QuerySQL
+	Else
+		Set QD = Workarea.DAODataBase.Querydefs(QuerySQL)
+	End If
+
+	For i = 0 To UBound(aQueryPrm)
+		QD.Parameters(i).Value = aQueryPrm(i)
+	Next
+
+	Set Rs = QD.OpenRecordset
+	DAO_Query = Not Rs.eof
+
+	If Rs.eof Then
+		aData = Array()
+	Else
+		Rs.MoveLast
+		n = Rs.Recordcount
+		Rs.MoveFirst
+		aData = Rs.GetRows(n)
+	End If
+
+End Function
+
+'---
+'
+'---
+Function DAO_QueryByName(QueryName, aQueryPrm, ByRef aData)
+	Dim n, i, Rs, QD
+
+	Set QD = Workarea.DAODataBase.QueryDefs(QueryName)
+
+	For i = 0 To UBound(aQueryPrm)
+		QD.Parameters(i).Value = aQueryPrm(i)
+	Next
+
+	Set Rs = QD.OpenRecordset
+	DAO_QueryByName = Not Rs.eof
+
+	If Rs.eof Then
+		aData = Array()
+	Else
+		Rs.MoveLast
+		n = Rs.Recordcount
+		Rs.MoveFirst
+		aData = Rs.GetRows(n)
+	End If
+
+End Function
+'---
+'
+'---
+Function GetVarLen(PrmType)
+	Select Case PrmType
+		Case vbInteger, vbLong
+			GetVarLen = 10
+
+		Case vbDate
+			GetVarLen = 20
+
+		Case vbString 
+			GetVarLen = Len(PrmType)
+
+		Case Else
+			GetVarLen = Null
+	End Select
+End Function
+'---
+'
+'---
+Function Query(QueryName, aQueryPrm, ByRef aData)
+	Dim i, PrmType
+
+	If App.AppType = "DAO" Then
+		Query = DAO_Query(QueryName, aQueryPrm, aData)
+	Else
+
+		For i = 0 To UBound(aQueryPrm)
+			PrmType = VarType(aQueryPrm(i))
+			aQueryPrm(i) = Array(aQueryPrm(i), PrmType, GetVarLen(PrmType))
+		Next
+ 
+		Query = ADO_Query(QueryName, aQueryPrm, aData)	
+	End If
+End Function
+'---
+'
+'---
+Function ExecQuery(ByVal SQLString, ByRef ErrorMsg)
+	Dim DB, Cmd, Cn, Rs
+
+	On Error Resume Next
+
+	If App.AppType = "DAO" Then
+		Set Db = WorkArea.DAODataBase
+		db.Execute SQLString
+	Else
+
+		SQLString = Replace(SQLString, Chr(34), "'")
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CommandTimeout = ADODB_TIMEUOT
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+	End If
+
+	ExecQuery = Err.Number
+
+	If Err.Number <> 0 Then 
+		ErrorMsg = Err.Description & " (" & Err.Number & ")"
+	Else
+		ErrorMsg = ""
+	End If
+End Function
+'---
+'
+'---
+
+Function SQLDate(VarDate)
+	If App.AppType = "DAO" Then
+		SQLDate = Formatdate2(VarDate, "#yyyy/mm/dd#")
+	Else
+		SQLDate = Replace(Formatdate2(VarDate, "'yyyy/mm/dd'"), "/", "")
+	End If
+End Function
+'---
+'
+'---
+
