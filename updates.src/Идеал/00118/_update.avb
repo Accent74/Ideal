@@ -1,0 +1,76 @@
+'-----------
+'	Идеал 118
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "ST74_ADO.avb"
+
+Const CURR_YEAR = 2021
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	Dim MsgBar, m, r
+
+	updatemethods updater				'	исправили методы
+
+	If updater.fail Then 
+		Set MsgBar = Msg()
+		MsgBar.Write "В процессе установки обновления произошли ошибки. Подробнее в файле Идеал_00118.log"
+	End If
+End Sub
+'----
+'
+'----
+Sub 	updatemethods(updater)
+	updatemethodbyfilename "2411а ЕСВ (базовый, аванс).avb", updater
+	updatemethodbyfilename "2411 ЕСВ (базовый).avb", updater
+
+End Sub
+'----
+'
+'----
