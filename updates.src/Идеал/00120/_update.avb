@@ -1,0 +1,382 @@
+'-----------
+'	Идеал 120
+'	модуль обновления 
+'-----------
+Option Explicit
+
+'#include "_ideal_update_func.avb"
+'#include "ST74_ADO.avb"
+
+Const CURR_YEAR = 2021
+
+Class UpdateLog
+	Public LogFileName
+	Public fail
+	Private LogFile
+	Private IsLogfileOpened
+
+	Sub Class_Initialize
+		LogFileName = "d:\accent.log"
+		IsLogfileOpened = False
+		fail = False
+	End Sub
+
+	Sub Class_Terminate
+		If IsLogfileOpened Then LogFile.Close
+	End Sub
+
+	Sub Writelog(TextLog)
+		If Not IsLogfileOpened Then OpenFile LogFileName
+		If IsLogfileOpened Then LogFile.WriteLine TextLog
+	End Sub
+
+	Sub OpenFile(FileName)
+		Dim FSO
+
+		If FileName = "" Then Exit Sub
+		Set FSO = CreateObject("Scripting.FileSystemObject")
+		Set LogFile = FSO.CreateTextFile(FileName, True)
+		
+		IsLogfileOpened = Not (LogFile Is Nothing)
+	End Sub
+
+	Public Sub Refresh
+	End Sub
+
+End Class
+
+'Dim updater
+'Set updater = New UpdateLog
+'
+'stop
+'Main Updater
+'-------------------
+'
+'-------------------
+Sub Main(Updater)
+	UpdateFiles updater
+	If Not updater.fail Then UpdateScripts updater
+	If Not updater.fail Then updatemethods updater
+	If Not updater.fail Then CreateMethods updater
+
+	If updater.fail Then 
+		Set MsgBar = Msg()
+		MsgBar.Write "В процессе установки обновления произошли ошибки. Подробнее в файле Идеал_00120.log"
+	End If
+End Sub
+'----
+'
+'----
+Sub updatemethods(updater)
+	updatemethodbyfilename "2000-01 ЕСВ базовый.avb", updater
+End Sub
+
+Sub UpdateScripts(updater)
+	Dim SQL
+
+	If App.AppType = "DAO" Then
+		DropQueryDef "1DR"
+		SQL = _
+				"PARAMETERS [Year] Long, mStart Long, mEnd Long, MTD_IN_ID Long, MTD_OUT_ID Long, MTD_TAX_ID Long, lgtCode Long, MTD_MT_ID Long; " & _
+				"Select  " & _
+				"	P_JOURNAL.AG_ID,  " & _
+				"	AGENTS.AG_NAME,  " & _
+				"	[pp_year]*100+[pp_month] AS Period,  " & _
+				"	Sum(P_JOURNAL.JP_SUM) AS [Sum3a],  " & _
+				"	0 as Sum3,  " & _
+				"	0 as Sum4a,  " & _
+				"	0 as Sum4,  " & _
+				"	1 as InType,  " & _
+				"	0 as lgType, " & _
+				"	0 as Sum5, " & _
+				"	0 as Sum5a " & _
+				"FROM  " & _
+				"	P_PERIOD  " & _
+				"		Right Join (AGENTS  " & _
+				"			Right Join (P_JOURNAL  " & _
+				"				Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT)  " & _
+				"			On AGENTS.AG_ID = P_JOURNAL.AG_ID)  " & _
+				"		On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD  " & _
+				"WHERE  " & _
+				"(((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_IN_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd]))  " & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month]  " & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))  " & _
+				"ORDER BY AGENTS.AG_NAME  " & _
+				"union all  " & _
+				"Select  " & _
+				"	P_JOURNAL.AG_ID,  " & _
+				"	AGENTS.AG_NAME,  " & _
+				"	[pp_year]*100+[pp_month] AS Period,  " & _
+				"	0 as Sum3a,  " & _
+				"	Sum(P_JOURNAL.JP_SUM) AS [Sum3],  " & _
+				"	0 as Sum4a,  " & _
+				"	0 as Sum4,  " & _
+				"	1 as InType,  " & _
+				"	0 as lgType, " & _
+				"	0 as Sum5, " & _
+				"	0 as Sum5a " & _
+				"FROM P_PERIOD Right Join (AGENTS Right Join (P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD " & _
+				"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_OUT_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd]))  " & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month]  " & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))  " & _
+				"ORDER BY AGENTS.AG_NAME  " & _
+				"union all  " & _
+				"Select  " & _
+				"	P_JOURNAL.AG_ID,  " & _
+				"	AGENTS.AG_NAME,  " & _
+				"	[pp_year]*100+[pp_month] AS Period,  " & _
+				"	0 as Sum3a,  " & _
+				"	0 AS [Sum3],  " & _
+				"	Sum(P_JOURNAL.JP_SUM) as Sum4a,  " & _
+				"	Sum(P_JOURNAL.JP_SUM) as Sum4,  " & _
+				"	iif(IsNull(JP_T1), " & _
+				"	1,  " & _
+				"	CLng(JP_T1)) as InType,  " & _
+				"	0 as lgType, " & _
+				"	0 as Sum5, " & _
+				"	0 as Sum5a " & _
+				"FROM P_PERIOD Right Join (AGENTS Right Join (P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) On AGENTS.AG_ID = P_JOURNAL.AG_ID) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=[MTD_TAX_ID]) And ((P_JOURNAL.JP_DONE)=1) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd]))  " & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month], JP_T1  " & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))  " & _
+				"ORDER BY AGENTS.AG_NAME  " & _
+				"UNION ALL  " & _
+				"Select  " & _
+				"	P_JOURNAL.AG_ID,  " & _
+				"	AGENTS.AG_NAME,  " & _
+				"	PP_YEAR*100+PP_MONTH AS Period, 0 AS Sum3a,  " & _
+				"	0 AS Sum3,  " & _
+				"	0 AS Sum4a,  " & _
+				"	0 AS Sum4,  " & _
+				"	1 AS InType, " & _
+				"	first(iif(IsNull(P_JOURNAL.JP_T3),0, CLng(P_JOURNAL.JP_T3))) AS lgType, " & _
+				"	0 as Sum5, " & _
+				"	0 as Sum5a " & _ 
+				"FROM  " & _
+				"	P_PERIOD Left Join ( " & _
+				"		AGENTS Right Join P_JOURNAL On AGENTS.AG_ID = P_JOURNAL.AG_ID " & _
+				"	) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD  " & _
+				"WHERE (((P_JOURNAL.JP_DONE)=1) And ((P_JOURNAL.MTC_ID)=[lgtCode]) And ((P_PERIOD.PP_MONTH)>=[mStart] And (P_PERIOD.PP_MONTH)<=[mEnd]) And ((P_PERIOD.PP_YEAR)=[Year]) And ((P_JOURNAL.JP_SUM)<>0))  " & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, PP_YEAR*100+PP_MONTH, P_JOURNAL.JP_T3 " & _
+				"ORDER BY AGENTS.AG_NAME " & _
+				"UNION ALL Select  " & _
+				"	P_JOURNAL.AG_ID,  " & _
+				"	AGENTS.AG_NAME,  " & _
+				"	[pp_year]*100+[pp_month] AS Period,  " & _
+				"	0 as Sum3a,  " & _
+				"	0 AS [Sum3],  " & _
+				"	0 as Sum4a,  " & _
+				"	0 as Sum4,  " & _
+				"	iif(IsNull(JP_T1), " & _
+				"	1,  " & _
+				"	CLng(JP_T1)) as InType,  " & _
+				"	0 as lgType, " & _
+				"	Sum(P_JOURNAL.JP_SUM) as Sum5, " & _
+				"	Sum(P_JOURNAL.JP_SUM) as Sum5a " & _
+				"FROM  " & _
+				"	P_PERIOD  " & _
+				"		Right Join ( " & _
+				"			AGENTS Right Join ( " & _
+				"				P_JOURNAL Right Join MTD_DEPENDS On P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT " & _
+				"			) On AGENTS.AG_ID = P_JOURNAL.AG_ID " & _
+				"		) On P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD  " & _
+				"WHERE ( " & _
+				"		(MTD_DEPENDS.MTD_ID_RIGHT=[MTD_MT_ID])  " & _
+				"		And (P_JOURNAL.JP_DONE=1)  " & _
+				"		And (P_PERIOD.PP_YEAR=[Year])  " & _
+				"		And (P_PERIOD.PP_MONTH>=[mStart] And P_PERIOD.PP_MONTH<=[mEnd]) " & _
+				"	)  " & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, [pp_year]*100+[pp_month], JP_T1  " & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0)) " & _
+				"ORDER BY AGENTS.AG_NAME;"
+
+		Workarea.DAODataBase.CreateQueryDef "1DR", SQL
+	Else
+		SQL = _
+				"ALTER PROCEDURE [dbo].[ideal_1DF]" & _
+				"	@nYear int, " & _
+				"	@mStart int, " & _
+				"	@mEnd int, " & _
+				"	@MTD_IN_ID int, " & _
+				"	@MTD_OUT_ID int, " & _
+				"	@MTD_TAX_ID int, " & _
+				"	@lgtCode int," & _
+				"	@MTD_MT_ID int" & _
+				"AS" & _
+				"set nocount on" & _
+				"Create table #AgData (	AgID int, " & _
+				"			AgName  nvarchar(255), " & _
+				"			lPreiod int, " & _
+				"			Sum3a Money, " & _
+				"			Sum3 Money, " & _
+				"			Sum4a money, " & _
+				"			Sum4 Money, " & _
+				"			InType money, " & _
+				"			lgType money," & _
+				"			mtType money," & _
+				"			Sum5a Money, " & _
+				"			Sum5 Money, " & _
+				"			)" & _
+				"insert into #AgData(AgID, AgName, lPreiod, Sum3a, Sum3, Sum4a, Sum4, InType, lgType, mtType, Sum5a, Sum5)" & _
+				"SELECT 	P_JOURNAL.AG_ID, " & _
+				"	AGENTS.AG_NAME, " & _
+				"	pp_year*100+pp_month, " & _
+				"	Sum(P_JOURNAL.JP_SUM), " & _
+				"	0, 0, 0, 1, 0, 0, 0, 0" & _
+				"FROM P_PERIOD 	RIGHT JOIN (AGENTS RIGHT JOIN (P_JOURNAL RIGHT JOIN MTD_DEPENDS ON P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) ON AGENTS.AG_ID = P_JOURNAL.AG_ID) ON P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD" & _
+				"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=@MTD_IN_ID) AND ((P_JOURNAL.JP_DONE)=1) AND ((P_PERIOD.PP_YEAR)=@nYear) AND ((P_PERIOD.PP_MONTH)>=@mStart And (P_PERIOD.PP_MONTH)<=@mEnd))" & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, pp_year*100+pp_month" & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))" & _
+				"ORDER BY AGENTS.AG_NAME" & _
+				"" & _
+				"insert into #AgData(AgID, AgName, lPreiod, Sum3a, Sum3, Sum4a, Sum4, InType, lgType, Sum5a, Sum5)" & _
+				"SELECT 	P_JOURNAL.AG_ID, " & _
+				"	AGENTS.AG_NAME, " & _
+				"	pp_year*100+pp_month," & _
+				"	0, " & _
+				"	Sum(P_JOURNAL.JP_SUM)," & _
+				"	0, 0, 1, 0, 0, 0" & _
+				"FROM P_PERIOD RIGHT JOIN (AGENTS RIGHT JOIN (P_JOURNAL RIGHT JOIN MTD_DEPENDS ON P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) ON AGENTS.AG_ID = P_JOURNAL.AG_ID) ON P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD" & _
+				"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=@MTD_OUT_ID) AND ((P_JOURNAL.JP_DONE)=1) AND ((P_PERIOD.PP_YEAR)=@nYear) AND ((P_PERIOD.PP_MONTH)>=@mStart And (P_PERIOD.PP_MONTH)<=@mEnd))" & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, pp_year*100+pp_month" & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))" & _
+				"ORDER BY AGENTS.AG_NAME" & _
+				"" & _
+				"insert into #AgData(AgID, AgName, lPreiod, Sum3a, Sum3, Sum4a, Sum4, InType, lgType, Sum5a, Sum5)" & _
+				"SELECT 	P_JOURNAL.AG_ID, " & _
+				"	AGENTS.AG_NAME, " & _
+				"	pp_year*100+pp_month, " & _
+				"	0, 0, " & _
+				"	Sum(P_JOURNAL.JP_SUM), " & _
+				"	Sum(P_JOURNAL.JP_SUM), " & _
+				"	Case " & _
+				"		When isnull(JP_T1, 0) = 0 then 1" & _
+				"		else JP_T1" & _
+				"	end, 0, 0, 0" & _
+				"FROM P_PERIOD RIGHT JOIN (AGENTS RIGHT JOIN (P_JOURNAL RIGHT JOIN MTD_DEPENDS ON P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) ON AGENTS.AG_ID = P_JOURNAL.AG_ID) ON P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD" & _
+				"WHERE (((MTD_DEPENDS.MTD_ID_RIGHT)=@MTD_TAX_ID) AND ((P_JOURNAL.JP_DONE)=1) AND ((P_PERIOD.PP_YEAR)=@nYear) AND ((P_PERIOD.PP_MONTH)>=@mStart And (P_PERIOD.PP_MONTH)<=@mEnd))" & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, pp_year*100+pp_month, JP_T1" & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))" & _
+				"ORDER BY AGENTS.AG_NAME" & _
+				"insert into #AgData(AgID, AgName, lPreiod, Sum3a, Sum3, Sum4a, Sum4, InType, lgType, Sum5a, Sum5)" & _
+				"SELECT 	P_JOURNAL.AG_ID," & _
+				"	AGENTS.AG_NAME," & _
+				"	PP_YEAR*100+PP_MONTH," & _
+				"	0, 0, 0, 0, 1," & _
+				"	Case" & _
+				"		When isnull(P_JOURNAL.JP_T3,0) = 0 then 0" & _
+				"		else P_JOURNAL.JP_T3" & _
+				"	end, 0, 0" & _
+				"FROM P_PERIOD LEFT JOIN (AGENTS RIGHT JOIN P_JOURNAL ON AGENTS.AG_ID = P_JOURNAL.AG_ID) ON P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD" & _
+				"WHERE (((P_JOURNAL.JP_DONE)=1) AND ((P_JOURNAL.MTC_ID)=@lgtCode) AND ((P_PERIOD.PP_MONTH)>=@mStart And (P_PERIOD.PP_MONTH)<=@mEnd) AND ((P_PERIOD.PP_YEAR)=@nYear) AND ((P_JOURNAL.JP_SUM)<>0))" & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, PP_YEAR*100+PP_MONTH, P_JOURNAL.JP_T3" & _
+				"ORDER BY AGENTS.AG_NAME" & _
+				"insert into #AgData(AgID, AgName, lPreiod, Sum3a, Sum3, Sum4a, Sum4, InType, lgType, Sum5a, Sum5)" & _
+				"SELECT 	" & _
+				"	P_JOURNAL.AG_ID," & _
+				"	AGENTS.AG_NAME," & _
+				"	PP_YEAR*100+PP_MONTH," & _
+				"	0, 0, 0, 0, " & _
+				"	1, 0," & _
+				"	Sum(P_JOURNAL.JP_Sum) as Sum5a," & _
+				"	Sum(P_JOURNAL.JP_Sum) as Sum5" & _
+				"FROM P_PERIOD 	" & _
+				"	RIGHT JOIN (AGENTS " & _
+				"		RIGHT JOIN (P_JOURNAL " & _
+				"			RIGHT JOIN MTD_DEPENDS ON P_JOURNAL.MTC_ID = MTD_DEPENDS.MTD_ID_LEFT) " & _
+				"		ON AGENTS.AG_ID = P_JOURNAL.AG_ID) " & _
+				"	ON P_PERIOD.PP_ID = P_JOURNAL.W_PERIOD" & _
+				"WHERE " & _
+				"	(((MTD_DEPENDS.MTD_ID_RIGHT)=@MTD_MT_ID) " & _
+				"		AND ((P_JOURNAL.JP_DONE)=1) " & _
+				"			AND ((P_PERIOD.PP_YEAR)=@nYear) " & _
+				"				AND ((P_PERIOD.PP_MONTH)>=@mStart And (P_PERIOD.PP_MONTH)<=@mEnd))" & _
+				"GROUP BY P_JOURNAL.AG_ID, AGENTS.AG_NAME, pp_year*100+pp_month" & _
+				"HAVING (((Sum(P_JOURNAL.JP_SUM))<>0))" & _
+				"ORDER BY AGENTS.AG_NAME" & _
+				"SELECT 	AGID as AgID, " & _
+				"	AGNAME as AgName, " & _
+				"	Sum(Sum3a) as Sim3a, " & _
+				"	Sum(Sum3) as Sum3, " & _
+				"	Sum(Sum4a) as Sum4a, " & _
+				"	Sum(Sum4) as Sum4, " & _
+				"	InType, " & _
+				"	Max(dbo.Num2Pos(lgtype, 1)) AS lgt_1, " & _
+				"	Max(dbo.Num2Pos(lgtype, 2)) AS lgt_2, " & _
+				"	Max(dbo.Num2Pos(lgtype, 3)) AS lgt_3, " & _
+				"	Max(dbo.Num2Pos(lgtype, 4)) AS lgt_4," & _
+				"	Sum(Sum5a) as Sum5a, " & _
+				"	Sum(Sum5) as Sum5" & _
+				"FROM #AgData" & _
+				"GROUP BY AGID, AGNAME, InType" & _
+				"ORDER BY AGNAME, AGID"
+
+		Dim ErrorMsg
+		updater.fail = (ExecQuery(SQL, ErrorMsg) <> 0)
+		updater.writelog "Ошибка выполнения запроса:" & ErrorMsg
+
+	End If
+End Sub
+
+Sub UpdateFiles(updater)
+	Dim RD, FSO
+
+	Set RD = CreateLibObject("Redirect")
+	Set FSO = CreateObject("Scripting.FileSystemObject")
+	
+	updater.fail = Not UpdateFile(RD.GetFullPath("payroll_1df2_J0510406.afm"), RD.GetFullPath("payroll_1df2.afm"), FSO)
+
+	If Not updater.fail Then
+		updater.fail = Not UpdateFile(RD.GetFullPath("Идеал_ЕСВ_J0510106.afm"), RD.GetFullPath("Идеал_ЕСВ.afm"), FSO)
+	End If
+	
+End Sub
+'----
+'
+'----
+Function UpdateFile(NewFilePath, OldFilePath, FSO)
+	Dim DstFilePath
+
+	UpdateFile = True
+
+	If OldFilePath <> "" Then
+		If Isfileexists(OldFilePath) Then
+			DstFilePath = OldFilePath & ".bak"
+			If Isfileexists(DstFilePath) Then FSO.DeleteFile DstFilePath, True
+			FSO.MoveFile OldFilePath, DstFilePath
+		End If
+	End If
+
+	If NewFilePath <> "" Then
+		If IsFileExists(NewFilePath) Then
+			DstFilePath = iif(OldFilePath = "", _
+					Left(NewFilePath, InStrRev(NewFilePath, ".") - 10) & ".afm", _
+					OldFilePath)
+
+			If IsFileExists(DstFilePath) Then FSO.DeleteFile DstFilePath, True
+			FSO.MoveFile NewFilePath, DstFilePath
+		End If
+	End If
+
+End Function
+
+Sub CreateMethods(updater)
+	Dim f, NewCode
+
+	Set f = FindCodeFolder("Отчеты", workarea.codes)
+
+	If Not f Is Nothing Then
+		If Workarea.GetCodeID("0051") = 0 Then
+			Set NewCode = f.Create(103, "0051", "1ДФ Військовий збір")
+			updater.refresh
+		Else
+			Set NewCode = Workarea.Code(Workarea.GetCodeID("0051"))
+		End If
+
+		If Not NewCode Is Nothing Then
+			CheckDependsCode NewCode, Array("2500", "2500а"), True, updater
+		End If
+	Else
+		updater.writelog "Ошибка: не найдена папка ФОП в кодах начислений/удержаний"
+		updater.faile = True
+	End If
+End Sub

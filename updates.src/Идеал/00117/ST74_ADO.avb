@@ -1,0 +1,231 @@
+Option Explicit
+
+Const ADODB_TIMEUOT = 0
+'---
+'
+'---
+Function ADO_Query(QueryName, aQueryPrm, ByRef aData)
+	Dim Cn, Cmd, RecSet, i, Rs
+
+	Set Cn = WorkArea.AdoConnection
+	Cn.CursorLocation = 2 'курсор на нашей стороне
+
+	Set Cmd = CreateObject("ADODB.Command")
+	Set Cmd.ActiveConnection = Cn 
+
+	Cmd.CommandText = QueryName
+
+	For i = 0 To UBound(aQueryPrm)
+		AddParameters Cmd, aQueryPrm(i)(0), aQueryPrm(i)(1), aQueryPrm(i)(2)
+	Next
+		
+	' сообщаем, что команда это инструкция хранимая процедура
+	Cmd.CommandType = 4	
+
+	Set Rs = Cmd.Execute
+
+	ADO_Query = Not Rs.eof
+
+	If Rs.eof Then
+		aData = Array()
+	Else
+		aData = Rs.GetRows()
+	End If
+End Function
+'---
+'
+'---
+Sub AddParameters(Cmd, ArgValue, ArgType, ArgLong)
+	Dim Prm
+
+	' устанавливаем параметры
+	Set Prm = Cmd.CreateParameter(, ArgType, 1, ArgLong)	' 	создаем параметр 
+	Prm.Value = ArgValue														'	присваиваем значение
+	Cmd.Parameters.Append Prm												'	добавляем параметр в коллекцию параметров команды
+
+End Sub
+'---
+'
+'---
+Function GetRs(SQLString)
+	Dim DB, Cmd, Cn, Rs
+
+	If App.AppType = "DAO" Then
+		Set Db = WorkArea.DAODataBase
+		Set GetRS = db.openrecordset(SQLString)
+	Else
+
+		SQLString = Replace(SQLString, Chr(34), "'")
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+		Rs.ActiveConnection.CommandTimeout = ADODB_TIMEUOT
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+		Set GetRs = Rs	' выполняем команду 
+	End If
+End Function
+'---
+'
+'---
+Function GetRs2(SQLString, aData)
+	Dim DB, Rs, n
+
+	Set RS = GetRs(SQLString)
+
+	If Not Rs.eof Then
+		If App.AppType = "DAO" Then
+			Rs.MoveLast
+			n = Rs.RecordCount
+			Rs.MoveFirst
+			aData = Rs.GetRows(n)
+		Else
+			aData = Rs.GetRows
+		End If
+	Else
+		aData = Array()
+	End If
+
+	GetRs2 = UBound(aData) <> -1
+End Function
+'---
+'
+'---
+Function DAO_Query(QuerySQL, aQueryPrm, ByRef aData)
+	Dim n, i, Rs, QD, FirstCmd
+
+	FirstCmd = UCase(token(QuerySQL, 1, " "))
+
+	If FirstCmd = "SELECT" Or FirstCmd = "PARAMETERS" Then 
+		Set QD = Workarea.DAODataBase.CreateQuerydef("")
+		QD.SQL = QuerySQL
+	Else
+		Set QD = Workarea.DAODataBase.Querydefs(QuerySQL)
+	End If
+
+	For i = 0 To UBound(aQueryPrm)
+		QD.Parameters(i).Value = aQueryPrm(i)
+	Next
+
+	Set Rs = QD.OpenRecordset
+	DAO_Query = Not Rs.eof
+
+	If Rs.eof Then
+		aData = Array()
+	Else
+		Rs.MoveLast
+		n = Rs.Recordcount
+		Rs.MoveFirst
+		aData = Rs.GetRows(n)
+	End If
+
+End Function
+
+'---
+'
+'---
+Function DAO_QueryByName(QueryName, aQueryPrm, ByRef aData)
+	Dim n, i, Rs, QD
+
+	Set QD = Workarea.DAODataBase.QueryDefs(QueryName)
+
+	For i = 0 To UBound(aQueryPrm)
+		QD.Parameters(i).Value = aQueryPrm(i)
+	Next
+
+	Set Rs = QD.OpenRecordset
+	DAO_QueryByName = Not Rs.eof
+
+	If Rs.eof Then
+		aData = Array()
+	Else
+		Rs.MoveLast
+		n = Rs.Recordcount
+		Rs.MoveFirst
+		aData = Rs.GetRows(n)
+	End If
+
+End Function
+'---
+'
+'---
+Function GetVarLen(PrmType)
+	Select Case PrmType
+		Case vbInteger, vbLong
+			GetVarLen = 10
+
+		Case vbDate
+			GetVarLen = 20
+
+		Case vbString 
+			GetVarLen = Len(PrmType)
+
+		Case Else
+			GetVarLen = Null
+	End Select
+End Function
+'---
+'
+'---
+Function Query(QueryName, aQueryPrm, ByRef aData)
+	Dim i, PrmType
+
+	If App.AppType = "DAO" Then
+		Query = DAO_Query(QueryName, aQueryPrm, aData)
+	Else
+
+		For i = 0 To UBound(aQueryPrm)
+			PrmType = VarType(aQueryPrm(i))
+			aQueryPrm(i) = Array(aQueryPrm(i), PrmType, GetVarLen(PrmType))
+		Next
+ 
+		Query = ADO_Query(QueryName, aQueryPrm, aData)	
+	End If
+End Function
+'---
+'
+'---
+Function ExecQuery(ByVal SQLString, ByRef ErrorMsg)
+	Dim DB, Cmd, Cn, Rs
+
+	On Error Resume Next
+
+	If App.AppType = "DAO" Then
+		Set Db = WorkArea.DAODataBase
+		db.Execute SQLString
+	Else
+
+		SQLString = Replace(SQLString, Chr(34), "'")
+
+		Set Cn = WorkArea.AdoConnection
+		Cn.CursorLocation = 3 'курсор на нашей стороне
+
+		Set rs = CreateObject("AdoDb.Recordset")
+		Set rs.ActiveConnection = Cn
+		Rs.ActiveConnection.CommandTimeout = ADODB_TIMEUOT
+
+		rs.CursorType = 1
+		rs.LockType = 3
+		rs.Source = SQLString
+		rs.Open
+	End If
+
+	ExecQuery = Err.Number
+
+	If Err.Number <> 0 Then 
+		ErrorMsg = Err.Description & " (" & Err.Number & ")"
+	Else
+		ErrorMsg = ""
+	End If
+End Function
+
+'---
+'
+'---
+

@@ -1,0 +1,258 @@
+Option Explicit
+
+'Class mActions - класс "вернего" уровня
+'	Properties :
+'	Root - корень меню
+'	Methods :
+'	ItemByName(Name) - поиск элемента меню по имени
+'	Save - сохранить в БД меню
+
+'Class MenuActions - список элементов меню
+'	Properties :
+'	Parent - элемент - родитель (MenuAction)
+'	Count - количество элементов
+'	Methods :
+'	Item(ItemNo) - получить элемент (MenuAction) по его номеру
+'	Create(ItemName, ItemFile, ItemLevel, ItemNo) - добавить новый элемент
+
+'Class MenuAction	-	элемент меню
+'	Properties :
+'	Level - уровень меню
+'	Name - нименование
+'	FileName - наименование файла
+'	Parent - родитель
+'	HasChildren - есть ли "дети"
+'	Methods :
+'	Children - список детей (MenuActions)
+
+Class mActions
+	Private MA
+	Private MAFindByName
+
+	Private Sub Class_initialize
+		Dim RS
+		Dim CurrentLevel
+		Dim Level
+		Dim NewMA
+
+		Set MAFindByName = CreateObject("Scripting.Dictionary")
+
+		Set Rs = GetRS()
+		Set MA = New MenuAction
+		Set MA = MA.Children
+
+		CurrentLevel = 0
+
+		While Not rs.eof
+			Level = checknull(rs.fields("MA_LEVEL").Value, 0)
+			If Level > CurrentLevel Then
+				Set MA = NewMA.Children
+			ElseIf Level < CurrentLevel Then
+				Set MA = MA.Parent.Parent.Children
+			End If
+
+			CurrentLevel = Level
+
+			Set NewMA = MA.Create(checknull(rs.fields("MA_NAME").Value, ""), _
+					checknull(rs.fields("MA_FILE").Value, ""), _
+					CheckNull(rs.fields("MA_LEVEL").Value, 0), 0)
+
+			If Not MAFindByName.Exists(NewMA.Name) Then
+				MAFindByName.Add NewMA.Name, NewMA
+			End If
+
+			rs.movenext
+		Wend
+
+		While Not IsEmpty(MA.Parent.parent)
+			Set MA = Ma.Parent.Parent.children
+		Wend
+
+	End Sub
+
+	Public Property Get Root
+		Set Root = MA
+	End Property
+
+	Public Sub ItemDelete(Name)
+		If MAFindByName.Exists(Name) Then
+			MAFindByName.Remove(Name)
+		End If
+	End Sub
+
+	Public Function ItemByName(Name)
+		If MAFindByName.Exists(Name) Then
+			Set ItemByName = MAFindByName.Item(Name)
+		Else
+			Set ItemByName = Nothing
+		End If
+	End Function
+
+	Public Sub Save
+		Dim RS
+		Dim ItemNo
+		Dim RootMA
+
+		ClearTable
+
+		ItemNo = 0
+		Set Rs = GetRS()
+
+		AddItemToTable ItemNo, Rs, MA
+
+	End Sub
+
+	Private Sub AddItemToTable(ByRef ItemNo, Rs, ItemChildren)
+		Dim i
+		
+		For i = 1 To ItemChildren.Count
+			With ItemChildren.Item(i)
+				ItemNo = ItemNo + 1
+				Rs.AddNew
+
+				Rs.Fields("MA_NO").Value = ItemNo
+				Rs.Fields("MA_NAME").Value = .Name
+				Rs.Fields("MA_FILE").Value = iif(.FileName = "", " ", .FileName)
+				Rs.Fields("MA_LEVEL").Value = .Level
+				Rs.Update
+
+				If .HasChildren Then AddItemToTable ItemNo, Rs, .Children
+				
+			End With 
+		Next
+
+	End Sub
+
+	Private Sub ClearTable
+		Dim Cmd, Cn, Rs
+
+		If App.Apptype = "DAO" Then
+			WorkArea.DAODataBase.Execute("Delete pk From Menu_Actions")
+		Else
+			Set Cn = WorkArea.AdoConnection
+			Cn.CursorLocation = 2 'курсор на нашей стороне
+
+			Set Cmd = CreateObject("ADODB.Command")
+			Set Cmd.ActiveConnection = Cn 
+
+			Cmd.CommandType = 1
+			Cmd.CommandText = "Delete From Menu_Actions"
+			Set Rs = Cmd.Execute	' выполняем команду 
+		End If
+	End Sub
+
+
+	Private Function GetRS()
+		Dim DB, Cmd, Cn, Rs
+
+		If App.AppType = "DAO" Then
+			Set Db = WorkArea.DAODataBase
+			Set GetRS = db.openrecordset("Select * from Menu_Actions order by MA_NO")
+		Else
+			Set Cn = WorkArea.AdoConnection
+			Cn.CursorLocation = 3 'курсор на нашей стороне
+
+			Set rs = CreateObject("AdoDb.Recordset")
+			Set rs.ActiveConnection = Cn
+
+			rs.CursorType = 1
+			rs.LockType = 3
+			rs.Source = "Select * from Menu_Actions order by MA_NO"
+			rs.Open
+			Set GetRs = Rs	' выполняем команду 
+		End If
+
+	End Function
+
+End Class
+
+'-------------------
+Class MenuActions
+	Private MenuDict
+	Public Parent
+
+	Private Sub Class_initialize
+		Set MenuDict = CreateObject("Scripting.Dictionary")
+		Set Parent = Nothing
+	End Sub
+
+	Public Property Get Count
+		Count = MenuDict.Count
+	End Property
+
+	Public Function Item(ItemNo)
+		If ItemNo > 0 And ItemNo <= MenuDict.Count Then
+			Set Item = MenuDict.Item(ItemNo)
+		Else
+			Set Item = Nothing
+		End If
+	End Function
+
+	Public Function Delete(ItemName)
+		Dim i
+
+		For i = 1 To MenuDict.Count
+			If MenuDict.Item(i).Name = ItemName Then 
+				MenuDict.Remove i
+				Exit Function
+			End If
+		Next
+
+	End Function
+
+	Public Function Create(ItemName, ItemFile, ItemLevel, ItemNo)
+		Dim NewItem
+		Dim i
+
+		Set NewItem = New MenuAction
+		NewItem.Name = ItemName
+		NewItem.FileName = ItemFile
+		NewItem.Level = ItemLevel
+		Set NewItem.Parent = Parent
+		
+		If ItemNo = 0 Or ItemNo > MenuDict.Count Then
+			MenuDict.Add MenuDict.Count + 1, NewItem
+		Else
+			MenuDict.Add MenuDict.Count + 1, Nothing
+
+			For i = MenuDict.Count - 1 To ItemNo Step -1
+				Set MenuDict.Item(i + 1) = MenuDict.Item(i)
+			Next
+
+			Set MenuDict.Item(ItemNo) = NewItem
+
+		End If
+
+		Set Create = NewItem
+
+	End Function
+
+End Class
+
+'-------------------
+Class MenuAction
+	Public Level
+	Public Name
+	Public FileName
+	Private MA
+	Public Parent
+
+	Private Sub Class_initialize
+		Level = 0
+		Name = ""
+		FileName = ""
+		Set MA = New MenuActions
+		Set MA.Parent = Me
+	End Sub
+
+	Public Property Get HasChildren
+		HasChildren = (MA.Count <> 0)
+	End Property
+
+	Public Property Get Children
+		Set Children = MA
+	End Property
+
+End Class
+
+'-------------------
