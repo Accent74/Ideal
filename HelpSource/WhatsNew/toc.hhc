@@ -9,10 +9,16 @@
 </OBJECT>
 <UL>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="&Acirc;&aring;&eth;&ntilde;&egrave;&yuml; 7.0.120 (&icirc;&ograve; 8 &igrave;&agrave;&yuml; 2021 &atilde;.)">
+		<param name="Local" value="120.htm">
+		<param name="New" value="1">
+		<param name="ImageNumber" value="12">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="&Acirc;&aring;&eth;&ntilde;&egrave;&yuml; 7.0.119 (&icirc;&ograve; 20 &yuml;&iacute;&acirc;&agrave;&eth;&yuml; 2021 &atilde;.)">
 		<param name="Local" value="119.htm">
 		<param name="New" value="1">
-		<param name="ImageNumber" value="12">
+		<param name="ImageNumber" value="11">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="&Acirc;&aring;&eth;&ntilde;&egrave;&yuml; 7.0.118 (&icirc;&ograve; 19 &yuml;&iacute;&acirc;&agrave;&eth;&yuml; 2021 &atilde;.)">
